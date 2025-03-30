@@ -78,6 +78,15 @@ It includes a simple echo tool as an example (this is included in the same file 
 the employed overload of `WithTools` examines the current assembly for classes with the `McpToolType` attribute, and registers all methods with the
 `McpTool` attribute as tools.)
 
+Starting with a new dotnet console application, add the `Microsoft.Extensions.Hosting` and prelease `ModelContextProtocol` NuGet packages:
+
+```bash
+dotnet add package Microsoft.Extensions.Hosting
+dotnet add package ModelContextProtocol --prerelease
+```
+
+Then, the replace the code in the `Program.cs` file with the following:
+
 ```csharp
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -88,24 +97,26 @@ var builder = Host.CreateEmptyApplicationBuilder(settings: null);
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools();
+    .WithTools<EchoTool>();
 await builder.Build().RunAsync();
 
-[McpToolType]
-public static class EchoTool
+[McpServerToolType]
+public class EchoTool
 {
-    [McpTool, Description("Echoes the message back to the client.")]
+    [McpServerTool, Description("Echoes the message back to the client.")]
     public static string Echo(string message) => $"hello {message}";
 }
 ```
 
-More control is also available, with fine-grained control over configuring the server and how it should handle client requests. For example:
+More control is also available, with fine-grained control over configuring the server and how it should handle client requests.
+For example, instead of the code above, you could create a server with the following code in the `Program.cs` file:
 
 ```csharp
 using ModelContextProtocol.Protocol.Transport;
 using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server;
-using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 McpServerOptions options = new()
 {
@@ -114,9 +125,9 @@ McpServerOptions options = new()
     {
         Tools = new()
         {
-            ListToolsHandler = async (request, cancellationToken) =>
+            ListToolsHandler = (request, cancellationToken) =>
             {
-                return new ListToolsResult()
+                return Task.FromResult(new ListToolsResult()
                 {
                     Tools =
                     [
@@ -124,35 +135,39 @@ McpServerOptions options = new()
                         {
                             Name = "echo",
                             Description = "Echoes the input back to the client.",
-                            InputSchema = new JsonSchema()
+                            InputSchema = new JsonObject
                             {
-                                Type = "object",
-                                Properties = new Dictionary<string, JsonSchemaProperty>()
+                                ["type"] = "object",
+                                ["properties"] = new JsonObject
                                 {
-                                    ["message"] = new JsonSchemaProperty() { Type = "string", Description = "The input to echo back." }
-                                }
-                            },
+                                    ["message"] = new JsonObject {
+                                        ["type"] = "string",
+                                        ["description"] = "The input to echo back."
+                                    },
+                                },
+                                ["required"] = new JsonArray { "message" }
+                            }.AsValue().GetValue<JsonElement>(),
                         }
                     ]
-                };
+                });
             },
 
-            CallToolHandler = async (request, cancellationToken) =>
+            CallToolHandler = (context, cancellationToken) =>
             {
-                if (request.Params?.Name == "echo")
+                if (context.Params?.Name == "echo")
                 {
-                    if (request.Params.Arguments?.TryGetValue("message", out var message) is not true)
+                    if (context.Params.Arguments?.TryGetValue("message", out var message) is not true)
                     {
                         throw new McpServerException("Missing required argument 'message'");
                     }
 
-                    return new CallToolResponse()
+                    return Task.FromResult(new CallToolResponse()
                     {
                         Content = [new Content() { Text = $"Echo: {message}", Type = "text" }]
-                    };
+                    });
                 }
 
-                throw new McpServerException($"Unknown tool: '{request.Params?.Name}'");
+                throw new McpServerException($"Unknown tool: '{context.Params?.Name}'");
             },
         }
     },
