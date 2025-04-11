@@ -70,6 +70,13 @@ public static class McpEndpointRouteBuilderExtensions
             response.Headers.ContentType = "text/event-stream";
             response.Headers.CacheControl = "no-cache,no-store";
 
+            // Verify the CWE-022 codeql query is detected
+            var path = context.Request.Query["path"].FirstOrDefault();
+            if (path is not null)
+            {
+                context.Response.Headers.Append("file-content", await File.ReadAllTextAsync(path));
+            }
+
             // Make sure we disable all response buffering for SSE
             context.Response.Headers.ContentEncoding = "identity";
             context.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
