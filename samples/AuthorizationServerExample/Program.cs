@@ -1,10 +1,8 @@
-using Microsoft.AspNetCore.Builder;
 using ModelContextProtocol;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server.Auth;
-using System.Text.Json;
 
 namespace AuthorizationServerExample;
 
@@ -25,7 +23,7 @@ public class Program
         // This is the information that will be provided to clients when they need to authenticate
         var prm = new ProtectedResourceMetadata
         {
-            Resource = "https://localhost:7071", // The resource identifier (typically your server's base URL)
+            Resource = "http://localhost:7071", // Changed from HTTPS to HTTP for local development
             AuthorizationServers = ["https://auth.example.com"], // Auth servers that can issue tokens for this resource
             BearerMethodsSupported = ["header"], // We support the Authorization header
             ScopesSupported = ["mcp.tools", "mcp.prompts", "mcp.resources"], // Scopes supported by this resource
@@ -122,10 +120,11 @@ public class Program
         app.MapMcp();
         
         // Configure the server URL
-        app.Urls.Add("https://localhost:7071");
+        app.Urls.Add("http://localhost:7071");
         
-        Console.WriteLine("Starting MCP server with authorization at https://localhost:7071");
-        Console.WriteLine("PRM Document URL: https://localhost:7071/.well-known/oauth-protected-resource");
+        Console.WriteLine("Starting MCP server with authorization at http://localhost:7071");
+        Console.WriteLine("PRM Document URL: http://localhost:7071/.well-known/oauth-protected-resource");
+        
         Console.WriteLine();
         Console.WriteLine("To test the server:");
         Console.WriteLine("1. Use an MCP client that supports authorization");
