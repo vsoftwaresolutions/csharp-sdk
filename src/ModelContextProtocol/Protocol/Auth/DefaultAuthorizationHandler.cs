@@ -75,9 +75,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             throw exception;
         }
 
+        // Store the resource metadata in the context before validating the resource URL
+        authContext.Value.ResourceMetadata = resourceMetadata;
+
         // Validate that the resource matches the server FQDN
-        if (!authContext.Value.ValidateResourceUrl(serverUri.ToString()) && 
-            !string.Equals(resourceMetadata.Resource, serverUri.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (!authContext.Value.ValidateResourceUrl(serverUri.ToString()))
         {
             _logger.LogWarning("Resource URL mismatch: expected {Expected}, got {Actual}", 
                 serverUri, resourceMetadata.Resource);
@@ -86,8 +88,6 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             exception.ResourceUri = resourceMetadata.Resource;
             throw exception;
         }
-
-        authContext.Value.ResourceMetadata = resourceMetadata;
 
         // Get the first authorization server from the metadata
         if (resourceMetadata.AuthorizationServers == null || resourceMetadata.AuthorizationServers.Length == 0)

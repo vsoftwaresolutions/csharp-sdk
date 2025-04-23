@@ -12,7 +12,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         // Define the MCP server endpoint that requires OAuth authentication
-        var serverEndpoint = new Uri("https://example.com/mcp");
+        var serverEndpoint = new Uri("http://localhost:7071/sse");
 
         // Set up the SSE transport with authorization support
         var transportOptions = new SseClientTransportOptions
@@ -21,7 +21,6 @@ public class Program
             AuthorizeCallback = SseClientTransport.CreateLocalServerAuthorizeCallback(
                  openBrowser: async (url) =>
                  {
-                     // Open the URL in the user's default browser
                      Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                  }
              )

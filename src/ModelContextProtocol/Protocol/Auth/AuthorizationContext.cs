@@ -85,7 +85,15 @@ internal class AuthorizationContext
             return false;
         }
 
-        // Resource URL must match exactly
+        // Compare the host part (FQDN) rather than the full URL
+        if (Uri.TryCreate(resourceUrl, UriKind.Absolute, out Uri? resourceUri) && 
+            Uri.TryCreate(ResourceMetadata.Resource, UriKind.Absolute, out Uri? metadataUri))
+        {
+            // Compare only the host (domain name)
+            return string.Equals(resourceUri.Host, metadataUri.Host, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // If we can't parse both URLs, fall back to exact string comparison
         return string.Equals(resourceUrl, ResourceMetadata.Resource, StringComparison.OrdinalIgnoreCase);
     }
 }
