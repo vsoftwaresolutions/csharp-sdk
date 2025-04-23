@@ -122,6 +122,13 @@ public static partial class McpJsonUtilities
     [JsonSerializable(typeof(SubscribeRequestParams))]
     [JsonSerializable(typeof(UnsubscribeRequestParams))]
     [JsonSerializable(typeof(IReadOnlyDictionary<string, object>))]
+    
+    // Authorization-related types
+    [JsonSerializable(typeof(Protocol.Auth.ResourceMetadata))]
+    [JsonSerializable(typeof(Protocol.Auth.AuthorizationServerMetadata))]
+    [JsonSerializable(typeof(Protocol.Auth.ClientMetadata))]
+    [JsonSerializable(typeof(Protocol.Auth.ClientRegistrationResponse))]
+    [JsonSerializable(typeof(Protocol.Auth.TokenResponse))]
 
     [ExcludeFromCodeCoverage]
     internal sealed partial class JsonContext : JsonSerializerContext;

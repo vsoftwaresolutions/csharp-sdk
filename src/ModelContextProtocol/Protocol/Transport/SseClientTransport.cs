@@ -16,7 +16,7 @@ namespace ModelContextProtocol.Protocol.Transport;
 /// </para>
 /// <para>
 /// The SSE transport can handle OAuth 2.0 authorization flows when connecting to servers that require authentication.
-/// You can provide an <see cref="AuthorizeCallback"/> in the transport options to handle the user authentication part
+/// You can provide an <see cref="SseClientTransportOptions.AuthorizeCallback"/> in the transport options to handle the user authentication part
 /// of the OAuth flow.
 /// </para>
 /// </remarks>

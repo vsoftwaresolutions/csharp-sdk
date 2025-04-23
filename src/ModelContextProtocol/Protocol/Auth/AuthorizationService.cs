@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ModelContextProtocol.Utils;
+using ModelContextProtocol.Utils.Json;
 
 namespace ModelContextProtocol.Protocol.Auth;
 
@@ -65,12 +66,12 @@ internal class AuthorizationService
             using var metadataResponse = await s_httpClient.GetAsync(resourceMetadataUrl);
             metadataResponse.EnsureSuccessStatusCode();
             
-            return await JsonSerializer.DeserializeAsync<ResourceMetadata>(
-                await metadataResponse.Content.ReadAsStreamAsync(),
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+            var contentStream = await metadataResponse.Content.ReadAsStreamAsync();
+            
+            // Read as string first, then deserialize using source-generated serializer
+            using var reader = new StreamReader(contentStream);
+            var json = await reader.ReadToEndAsync();
+            return JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ResourceMetadata);
         }
         catch (Exception)
         {
@@ -102,12 +103,19 @@ internal class AuthorizationService
             using var openIdResponse = await s_httpClient.GetAsync(openIdConfigUrl);
             if (openIdResponse.IsSuccessStatusCode)
             {
-                return await JsonSerializer.DeserializeAsync<AuthorizationServerMetadata>(
-                    await openIdResponse.Content.ReadAsStreamAsync(),
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? throw new InvalidOperationException("Failed to parse authorization server metadata");
+                var contentStream = await openIdResponse.Content.ReadAsStreamAsync();
+                
+                // Use source-generated serialization instead of dynamic deserialization
+                using var reader = new StreamReader(contentStream);
+                var json = await reader.ReadToEndAsync();
+                var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.AuthorizationServerMetadata);
+                
+                if (result == null)
+                {
+                    throw new InvalidOperationException("Failed to parse authorization server metadata");
+                }
+                
+                return result;
             }
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -122,12 +130,19 @@ internal class AuthorizationService
             using var oauthResponse = await s_httpClient.GetAsync(oauthConfigUrl);
             if (oauthResponse.IsSuccessStatusCode)
             {
-                return await JsonSerializer.DeserializeAsync<AuthorizationServerMetadata>(
-                    await oauthResponse.Content.ReadAsStreamAsync(),
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? throw new InvalidOperationException("Failed to parse authorization server metadata");
+                var contentStream = await oauthResponse.Content.ReadAsStreamAsync();
+                
+                // Use source-generated serialization instead of dynamic deserialization
+                using var reader = new StreamReader(contentStream);
+                var json = await reader.ReadToEndAsync();
+                var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.AuthorizationServerMetadata);
+                
+                if (result == null)
+                {
+                    throw new InvalidOperationException("Failed to parse authorization server metadata");
+                }
+                
+                return result;
             }
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -160,19 +175,25 @@ internal class AuthorizationService
         }
 
         var content = new StringContent(
-            JsonSerializer.Serialize(clientMetadata),
+            JsonSerializer.Serialize(clientMetadata, McpJsonUtilities.JsonContext.Default.ClientMetadata),
             Encoding.UTF8,
             "application/json");
 
         using var response = await s_httpClient.PostAsync(metadata.RegistrationEndpoint, content);
         response.EnsureSuccessStatusCode();
 
-        return await JsonSerializer.DeserializeAsync<ClientRegistrationResponse>(
-            await response.Content.ReadAsStreamAsync(),
-            new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? throw new InvalidOperationException("Failed to parse client registration response");
+        // Use source-generated serialization instead of dynamic deserialization
+        var contentStream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(contentStream);
+        var json = await reader.ReadToEndAsync();
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ClientRegistrationResponse);
+        
+        if (result == null)
+        {
+            throw new InvalidOperationException("Failed to parse client registration response");
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -293,12 +314,18 @@ internal class AuthorizationService
         using var response = await s_httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
-        return await JsonSerializer.DeserializeAsync<TokenResponse>(
-            await response.Content.ReadAsStreamAsync(),
-            new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? throw new InvalidOperationException("Failed to parse token response");
+        // Use source-generated serialization instead of dynamic deserialization
+        var contentStream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(contentStream);
+        var json = await reader.ReadToEndAsync();
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.TokenResponse);
+        
+        if (result == null)
+        {
+            throw new InvalidOperationException("Failed to parse token response");
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -341,12 +368,18 @@ internal class AuthorizationService
         using var response = await s_httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
-        return await JsonSerializer.DeserializeAsync<TokenResponse>(
-            await response.Content.ReadAsStreamAsync(),
-            new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? throw new InvalidOperationException("Failed to parse token response");
+        // Use source-generated serialization instead of dynamic deserialization
+        var contentStream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(contentStream);
+        var json = await reader.ReadToEndAsync();
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.TokenResponse);
+        
+        if (result == null)
+        {
+            throw new InvalidOperationException("Failed to parse token response");
+        }
+        
+        return result;
     }
 
     private static Dictionary<string, string> ParseAuthHeaderParameters(string parameters)
