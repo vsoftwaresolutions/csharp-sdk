@@ -66,6 +66,7 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
         SetResourcesHandler(options);
         SetSetLoggingLevelHandler(options);
         SetCompletionHandler(options);
+        SetAuthorizationHandler();
         SetPingHandler();
 
         // Register any notification handlers that were provided.
@@ -327,6 +328,7 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
             ServerCapabilities = new()
             {
                 Experimental = options.Capabilities?.Experimental,
+                Authorization = options.Capabilities?.Authorization,
                 Logging = options.Capabilities?.Logging,
                 Tools = options.Capabilities?.Tools,
                 Resources = options.Capabilities?.Resources,
@@ -425,6 +427,7 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
             ServerCapabilities = new()
             {
                 Experimental = options.Capabilities?.Experimental,
+                Authorization = options.Capabilities?.Authorization,
                 Logging = options.Capabilities?.Logging,
                 Prompts = options.Capabilities?.Prompts,
                 Resources = options.Capabilities?.Resources,
@@ -501,6 +504,13 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
             },
             McpJsonUtilities.JsonContext.Default.SetLevelRequestParams,
             McpJsonUtilities.JsonContext.Default.EmptyResult);
+    }
+
+    private void SetAuthorizationHandler()
+    {
+        // The authorization capability is handled via middleware in ASP.NET Core,
+        // so we don't need to set up any special handlers here.
+        // We just make sure to include the capability in the ServerCapabilities.
     }
 
     private ValueTask<TResult> InvokeHandlerAsync<TParams, TResult>(

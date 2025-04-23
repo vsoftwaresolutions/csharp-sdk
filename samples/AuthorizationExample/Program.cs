@@ -27,25 +27,23 @@ public class Program
              )
         };
         
-        try
+        // Create the client with authorization-enabled transport
+        var transport = new SseClientTransport(transportOptions);
+        var client = await McpClientFactory.CreateAsync(transport);
+
+        // Print the list of tools available from the server.
+        foreach (var tool in await client.ListToolsAsync())
         {
-            // Create the client with authorization-enabled transport
-            var transport = new SseClientTransport(transportOptions);
-            var client = await McpClientFactory.CreateAsync(transport);
-
-            // Print the list of tools available from the server.
-            foreach (var tool in await client.ListToolsAsync())
-            {
-                Console.WriteLine($"{tool.Name} ({tool.Description})");
-            }
-
-            // Execute a tool (this would normally be driven by LLM tool invocations).
-            var result = await client.CallToolAsync(
-                "echo",
-                new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
-                cancellationToken: CancellationToken.None);
-
-            // echo always returns one and only one text content object
-            Console.WriteLine(result.Content.First(c => c.Type == "text").Text);
+            Console.WriteLine($"{tool.Name} ({tool.Description})");
         }
+
+        // Execute a tool (this would normally be driven by LLM tool invocations).
+        var result = await client.CallToolAsync(
+            "echo",
+            new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
+            cancellationToken: CancellationToken.None);
+
+        // echo always returns one and only one text content object
+        Console.WriteLine(result.Content.First(c => c.Type == "text").Text);
+    }
 }
