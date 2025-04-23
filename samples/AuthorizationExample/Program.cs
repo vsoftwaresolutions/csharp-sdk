@@ -18,64 +18,34 @@ public class Program
         var transportOptions = new SseClientTransportOptions
         {
             Endpoint = serverEndpoint,
-            
-            // Provide a callback to handle the authorization flow
-            AuthorizeCallback = async (clientMetadata) =>
-            {
-                Console.WriteLine("Authentication required. Opening browser for authorization...");
-                
-                // In a real app, you'd likely have a local HTTP server to receive the callback
-                // This is just a simplified example
-                Console.WriteLine("Once you've authorized in the browser, enter the code and redirect URI:");
-                Console.Write("Code: ");
-                var code = Console.ReadLine() ?? "";
-                Console.Write("Redirect URI: ");
-                var redirectUri = Console.ReadLine() ?? "http://localhost:8888/callback";
-                
-                return (redirectUri, code);
-            }
-            
-            // Alternatively, use the built-in local server handler:
-            // AuthorizeCallback = SseClientTransport.CreateLocalServerAuthorizeCallback(
-            //     openBrowser: async (url) => 
-            //     {
-            //         // Open the URL in the user's default browser
-            //         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            //     }
-            // )
+            AuthorizeCallback = SseClientTransport.CreateLocalServerAuthorizeCallback(
+                 openBrowser: async (url) =>
+                 {
+                     // Open the URL in the user's default browser
+                     Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                 }
+             )
         };
         
         try
         {
             // Create the client with authorization-enabled transport
             var transport = new SseClientTransport(transportOptions);
-            var client = await McpClient.CreateAsync(transport);
+            var client = await McpClientFactory.CreateAsync(transport);
 
-            // Use the MCP client normally - authorization is handled automatically
-            // If the server returns a 401 Unauthorized response, the authorization flow will be triggered
-            var result = await client.PingAsync();
-            Console.WriteLine($"Server ping successful: {result.ServerInfo.Name} {result.ServerInfo.Version}");
-            
-            // Example tool call
-            var weatherPrompt = "What's the weather like today?";
-            var weatherResult = await client.CompletionCompleteAsync(
-                new CompletionCompleteRequestBuilder(weatherPrompt).Build());
-                
-            Console.WriteLine($"Response: {weatherResult.Content.Text}");
+            // Print the list of tools available from the server.
+            foreach (var tool in await client.ListToolsAsync())
+            {
+                Console.WriteLine($"{tool.Name} ({tool.Description})");
+            }
+
+            // Execute a tool (this would normally be driven by LLM tool invocations).
+            var result = await client.CallToolAsync(
+                "echo",
+                new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
+                cancellationToken: CancellationToken.None);
+
+            // echo always returns one and only one text content object
+            Console.WriteLine(result.Content.First(c => c.Type == "text").Text);
         }
-        catch (McpAuthorizationException authEx)
-        {
-            Console.WriteLine($"Authorization error: {authEx.Message}");
-            Console.WriteLine($"Resource: {authEx.ResourceUri}");
-            Console.WriteLine($"Auth server: {authEx.AuthorizationServerUri}");
-        }
-        catch (McpException mcpEx)
-        {
-            Console.WriteLine($"MCP error: {mcpEx.Message} (Error code: {mcpEx.ErrorCode})");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Unexpected error: {ex.Message}");
-        }
-    }
 }
