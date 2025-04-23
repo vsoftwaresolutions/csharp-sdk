@@ -46,20 +46,4 @@ public enum McpErrorCode
     /// This error is used when the endpoint encounters an unexpected condition that prevents it from fulfilling the request.
     /// </remarks>
     InternalError = -32603,
-
-    /// <summary>
-    /// Indicates that the client is not authorized to access the requested resource.
-    /// </summary>
-    /// <remarks>
-    /// This error is returned when the client lacks the necessary credentials or permissions to access a resource.
-    /// </remarks>
-    Unauthorized = -32401,
-
-    /// <summary>
-    /// Indicates that the authentication process failed.
-    /// </summary>
-    /// <remarks>
-    /// This error is returned when the client provides invalid or expired credentials, or when the authentication flow fails.
-    /// </remarks>
-    AuthenticationFailed = -32402,
 }

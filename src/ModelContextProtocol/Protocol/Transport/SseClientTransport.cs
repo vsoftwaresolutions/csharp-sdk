@@ -120,12 +120,12 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
                     if (!string.IsNullOrEmpty(error))
                     {
                         responseHtml = $"<html><body><h1>Authorization Failed</h1><p>Error: {error}</p></body></html>";
-                        authCodeTcs.SetException(new McpException($"Authorization failed: {error}", McpErrorCode.AuthenticationFailed));
+                        authCodeTcs.SetException(new McpException($"Authorization failed: {error}", McpErrorCode.InvalidRequest));
                     }
                     else if (string.IsNullOrEmpty(code))
                     {
                         responseHtml = "<html><body><h1>Authorization Failed</h1><p>No authorization code received.</p></body></html>";
-                        authCodeTcs.SetException(new McpException("No authorization code received", McpErrorCode.AuthenticationFailed));
+                        authCodeTcs.SetException(new McpException("No authorization code received", McpErrorCode.InvalidRequest));
                     }
                     else
                     {

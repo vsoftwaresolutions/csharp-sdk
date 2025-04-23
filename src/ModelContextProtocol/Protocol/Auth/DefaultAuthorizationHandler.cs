@@ -193,7 +193,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogError(ex, "Failed to complete authorization flow");
             
             var authException = new McpAuthorizationException(
-                $"Failed to complete authorization flow: {ex.Message}", ex, McpErrorCode.AuthenticationFailed);
+                $"Failed to complete authorization flow: {ex.Message}", ex, McpErrorCode.InvalidRequest);
             
             authException.ResourceUri = resourceMetadata.Resource;
             authException.AuthorizationServerUri = authServerUrl;

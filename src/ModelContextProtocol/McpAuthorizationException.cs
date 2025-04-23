@@ -13,7 +13,7 @@ public class McpAuthorizationException : McpException
     /// Initializes a new instance of the <see cref="McpAuthorizationException"/> class.
     /// </summary>
     public McpAuthorizationException() 
-        : base("Authorization failed", McpErrorCode.Unauthorized)
+        : base("Authorization failed", McpErrorCode.InvalidRequest)
     {
     }
 
@@ -22,7 +22,7 @@ public class McpAuthorizationException : McpException
     /// </summary>
     /// <param name="message">The message that describes the error.</param>
     public McpAuthorizationException(string message) 
-        : base(message, McpErrorCode.Unauthorized)
+        : base(message, McpErrorCode.InvalidRequest)
     {
     }
 
@@ -32,7 +32,7 @@ public class McpAuthorizationException : McpException
     /// <param name="message">The message that describes the error.</param>
     /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
     public McpAuthorizationException(string message, Exception? innerException) 
-        : base(message, innerException, McpErrorCode.Unauthorized)
+        : base(message, innerException, McpErrorCode.InvalidRequest)
     {
     }
 
@@ -40,14 +40,10 @@ public class McpAuthorizationException : McpException
     /// Initializes a new instance of the <see cref="McpAuthorizationException"/> class with a specified error message and error code.
     /// </summary>
     /// <param name="message">The message that describes the error.</param>
-    /// <param name="errorCode">The MCP error code. Should be either <see cref="McpErrorCode.Unauthorized"/> or <see cref="McpErrorCode.AuthenticationFailed"/>.</param>
+    /// <param name="errorCode">The MCP error code. Should use one of the standard error codes.</param>
     public McpAuthorizationException(string message, McpErrorCode errorCode) 
         : base(message, errorCode)
     {
-        if (errorCode != McpErrorCode.Unauthorized && errorCode != McpErrorCode.AuthenticationFailed)
-        {
-            throw new ArgumentException($"Error code must be either {nameof(McpErrorCode.Unauthorized)} or {nameof(McpErrorCode.AuthenticationFailed)}", nameof(errorCode));
-        }
     }
 
     /// <summary>
@@ -55,14 +51,10 @@ public class McpAuthorizationException : McpException
     /// </summary>
     /// <param name="message">The message that describes the error.</param>
     /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-    /// <param name="errorCode">The MCP error code. Should be either <see cref="McpErrorCode.Unauthorized"/> or <see cref="McpErrorCode.AuthenticationFailed"/>.</param>
+    /// <param name="errorCode">The MCP error code. Should use one of the standard error codes.</param>
     public McpAuthorizationException(string message, Exception? innerException, McpErrorCode errorCode) 
         : base(message, innerException, errorCode)
     {
-        if (errorCode != McpErrorCode.Unauthorized && errorCode != McpErrorCode.AuthenticationFailed)
-        {
-            throw new ArgumentException($"Error code must be either {nameof(McpErrorCode.Unauthorized)} or {nameof(McpErrorCode.AuthenticationFailed)}", nameof(errorCode));
-        }
     }
 
     /// <summary>
