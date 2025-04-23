@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Messages;
 using ModelContextProtocol.Utils;
 using ModelContextProtocol.Utils.Json;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.ServerSentEvents;
 using System.Text;
@@ -24,6 +26,7 @@ internal sealed partial class SseClientSessionTransport : TransportBase
     private Task? _receiveTask;
     private readonly ILogger _logger;
     private readonly TaskCompletionSource<bool> _connectionEstablished;
+    private readonly IAuthorizationHandler _authorizationHandler;
 
     /// <summary>
     /// SSE transport for client endpoints. Unlike stdio it does not launch a process, but connects to an existing server.
@@ -45,6 +48,10 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         _connectionCts = new CancellationTokenSource();
         _logger = (ILogger?)loggerFactory?.CreateLogger<SseClientTransport>() ?? NullLogger.Instance;
         _connectionEstablished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        
+        // Initialize the authorization handler
+        _authorizationHandler = transportOptions.AuthorizationHandler ?? 
+                               new DefaultAuthorizationHandler(loggerFactory, transportOptions.AuthorizeCallback);
     }
 
     /// <inheritdoc/>
@@ -87,56 +94,108 @@ internal sealed partial class SseClientSessionTransport : TransportBase
             messageId = messageWithId.Id.ToString();
         }
 
-        var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
+        using var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
         {
             Content = content,
         };
+        
+        // Add authorization headers if needed
+        await _authorizationHandler.AuthenticateRequestAsync(httpRequestMessage).ConfigureAwait(false);
+        
+        // Copy additional headers
         CopyAdditionalHeaders(httpRequestMessage.Headers);
-        var response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        // Check if the message was an initialize request
-        if (message is JsonRpcRequest request && request.Method == RequestMethods.Initialize)
+        
+        // Send the request, handling potential auth challenges
+        HttpResponseMessage? response = null;
+        bool authRetry = false;
+        
+        do
         {
-            // If the response is not a JSON-RPC response, it is an SSE message
+            authRetry = false;
+            response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
+            
+            // Handle 401 Unauthorized response
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Try to handle the unauthorized response
+                authRetry = await _authorizationHandler.HandleUnauthorizedResponseAsync(
+                    response, _messageEndpoint).ConfigureAwait(false);
+                
+                if (authRetry)
+                {
+                    // Create a new request (we can't reuse the previous one)
+                    using var newRequest = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
+                    {
+                        Content = new StringContent(
+                            JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
+                            Encoding.UTF8,
+                            "application/json"
+                        )
+                    };
+                    
+                    // Add authorization headers for the new request
+                    await _authorizationHandler.AuthenticateRequestAsync(newRequest).ConfigureAwait(false);
+                    CopyAdditionalHeaders(newRequest.Headers);
+                    
+                    // Dispose the previous response
+                    response.Dispose();
+                    
+                    // Send the new request
+                    response = await _httpClient.SendAsync(newRequest, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        } while (authRetry);
+
+        try
+        {
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            // Check if the message was an initialize request
+            if (message is JsonRpcRequest request && request.Method == RequestMethods.Initialize)
+            {
+                // If the response is not a JSON-RPC response, it is an SSE message
+                if (string.IsNullOrEmpty(responseContent) || responseContent.Equals("accepted", StringComparison.OrdinalIgnoreCase))
+                {
+                    LogAcceptedPost(Name, messageId);
+                    // The response will arrive as an SSE message
+                }
+                else
+                {
+                    JsonRpcResponse initializeResponse = JsonSerializer.Deserialize(responseContent, McpJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
+                        throw new InvalidOperationException("Failed to initialize client");
+
+                    LogTransportReceivedMessage(Name, messageId);
+                    await WriteMessageAsync(initializeResponse, cancellationToken).ConfigureAwait(false);
+                    LogTransportMessageWritten(Name, messageId);
+                }
+
+                return;
+            }
+
+            // Otherwise, check if the response was accepted (the response will come as an SSE message)
             if (string.IsNullOrEmpty(responseContent) || responseContent.Equals("accepted", StringComparison.OrdinalIgnoreCase))
             {
                 LogAcceptedPost(Name, messageId);
-                // The response will arrive as an SSE message
             }
             else
             {
-                JsonRpcResponse initializeResponse = JsonSerializer.Deserialize(responseContent, McpJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
-                    throw new InvalidOperationException("Failed to initialize client");
+                if (_logger.IsEnabled(LogLevel.Trace))
+                {
+                    LogRejectedPostSensitive(Name, messageId, responseContent);
+                }
+                else
+                {
+                    LogRejectedPost(Name, messageId);
+                }
 
-                LogTransportReceivedMessage(Name, messageId);
-                await WriteMessageAsync(initializeResponse, cancellationToken).ConfigureAwait(false);
-                LogTransportMessageWritten(Name, messageId);
+                throw new InvalidOperationException("Failed to send message");
             }
-
-            return;
         }
-
-        // Otherwise, check if the response was accepted (the response will come as an SSE message)
-        if (string.IsNullOrEmpty(responseContent) || responseContent.Equals("accepted", StringComparison.OrdinalIgnoreCase))
+        finally
         {
-            LogAcceptedPost(Name, messageId);
-        }
-        else
-        {
-            if (_logger.IsEnabled(LogLevel.Trace))
-            {
-                LogRejectedPostSensitive(Name, messageId, responseContent);
-            }
-            else
-            {
-                LogRejectedPost(Name, messageId);
-            }
-
-            throw new InvalidOperationException("Failed to send message");
+            response.Dispose();
         }
     }
 
@@ -187,13 +246,55 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, _sseEndpoint);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            
+            // Add authorization headers if needed
+            await _authorizationHandler.AuthenticateRequestAsync(request).ConfigureAwait(false);
+            
+            // Copy additional headers
             CopyAdditionalHeaders(request.Headers);
 
-            using var response = await _httpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken
-            ).ConfigureAwait(false);
+            // Send the request, handling potential auth challenges
+            HttpResponseMessage? response = null;
+            bool authRetry = false;
+            
+            do
+            {
+                authRetry = false;
+                response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken
+                ).ConfigureAwait(false);
+                
+                // Handle 401 Unauthorized response
+                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    // Try to handle the unauthorized response
+                    authRetry = await _authorizationHandler.HandleUnauthorizedResponseAsync(
+                        response, _sseEndpoint).ConfigureAwait(false);
+                    
+                    if (authRetry)
+                    {
+                        // Create a new request (we can't reuse the previous one)
+                        using var newRequest = new HttpRequestMessage(HttpMethod.Get, _sseEndpoint);
+                        newRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+                        
+                        // Add authorization headers for the new request
+                        await _authorizationHandler.AuthenticateRequestAsync(newRequest).ConfigureAwait(false);
+                        CopyAdditionalHeaders(newRequest.Headers);
+                        
+                        // Dispose the previous response
+                        response.Dispose();
+                        
+                        // Send the new request
+                        response = await _httpClient.SendAsync(
+                            newRequest,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            cancellationToken
+                        ).ConfigureAwait(false);
+                    }
+                }
+            } while (authRetry);
 
             response.EnsureSuccessStatusCode();
 

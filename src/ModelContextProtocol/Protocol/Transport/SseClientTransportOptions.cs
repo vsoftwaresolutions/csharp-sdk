@@ -1,5 +1,7 @@
 namespace ModelContextProtocol.Protocol.Transport;
 
+using ModelContextProtocol.Protocol.Auth;
+
 /// <summary>
 /// Provides options for configuring <see cref="SseClientTransport"/> instances.
 /// </summary>
@@ -55,4 +57,31 @@ public record SseClientTransportOptions
     /// Use this property to specify custom HTTP headers that should be sent with each request to the server.
     /// </remarks>
     public Dictionary<string, string>? AdditionalHeaders { get; init; }
+
+    /// <summary>
+    /// Gets or sets a delegate that handles the OAuth 2.0 authorization code flow.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This delegate is called when the SSE server requires OAuth 2.0 authorization. It receives the client metadata
+    /// and should return the redirect URI and authorization code received from the authorization server.
+    /// </para>
+    /// <para>
+    /// If not provided, the client will not be able to authenticate with servers that require OAuth authentication.
+    /// </para>
+    /// </remarks>
+    public Func<ClientMetadata, Task<(string RedirectUri, string Code)>>? AuthorizeCallback { get; init; }
+
+    /// <summary>
+    /// Gets or sets a custom authorization handler.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// If specified, this handler will be used to manage authorization with the SSE server.
+    /// </para>
+    /// <para>
+    /// If not provided, a default handler will be created using the <see cref="AuthorizeCallback"/>.
+    /// </para>
+    /// </remarks>
+    public IAuthorizationHandler? AuthorizationHandler { get; init; }
 }
