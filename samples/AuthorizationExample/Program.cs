@@ -27,9 +27,11 @@ public class Program
             AuthorizationOptions = new McpAuthorizationOptions
             {
                 // Pre-registered client credentials (if applicable)
-                ClientId = "my-registered-client-id",
-                ClientSecret = "optional-client-secret",
-                
+                ClientId = "04f79824-ab56-4511-a7cb-d7deaea92dc0",
+
+                // Setting some pre-defined scopes the client requests.
+                Scopes = ["User.Read"],
+
                 // Specify the exact same redirect URIs that are registered with the OAuth server
                 RedirectUris = new[] 
                 { 
