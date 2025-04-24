@@ -15,6 +15,31 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
     private readonly ILogger _logger;
     private readonly SynchronizedValue<AuthorizationContext> _authContext = new(new AuthorizationContext());
     private readonly Func<ClientMetadata, Task<(string RedirectUri, string Code)>>? _authorizeCallback;
+    private readonly string? _clientId;
+    private readonly string? _clientSecret;
+    private readonly ICollection<string>? _redirectUris;
+    private readonly ICollection<string>? _scopes;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultAuthorizationHandler"/> class.
+    /// </summary>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="options">The authorization options.</param>
+    public DefaultAuthorizationHandler(ILoggerFactory? loggerFactory = null, McpAuthorizationOptions? options = null)
+    {
+        _logger = loggerFactory != null 
+            ? loggerFactory.CreateLogger<DefaultAuthorizationHandler>() 
+            : NullLogger<DefaultAuthorizationHandler>.Instance;
+        
+        if (options != null)
+        {
+            _authorizeCallback = options.AuthorizeCallback;
+            _clientId = options.ClientId;
+            _clientSecret = options.ClientSecret;
+            _redirectUris = options.RedirectUris;
+            _scopes = options.Scopes;
+        }
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultAuthorizationHandler"/> class.
@@ -22,11 +47,8 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="authorizeCallback">A callback function that handles the authorization code flow.</param>
     public DefaultAuthorizationHandler(ILoggerFactory? loggerFactory = null, Func<ClientMetadata, Task<(string RedirectUri, string Code)>>? authorizeCallback = null)
+        : this(loggerFactory, new McpAuthorizationOptions { AuthorizeCallback = authorizeCallback })
     {
-        _logger = loggerFactory != null 
-            ? loggerFactory.CreateLogger<DefaultAuthorizationHandler>() 
-            : NullLogger<DefaultAuthorizationHandler>.Instance;
-        _authorizeCallback = authorizeCallback;
     }
 
     /// <inheritdoc />
@@ -110,16 +132,31 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogDebug("Successfully retrieved authorization server metadata");
 
             // Create client metadata
+            string[] redirectUris = _redirectUris?.ToArray() ?? new[] { "http://localhost:8888/callback" };
             var clientMetadata = new ClientMetadata
             {
-                RedirectUris = new[] { "http://localhost:8888/callback" }, // Default redirect URI
+                RedirectUris = redirectUris,
                 ClientName = "MCP C# SDK Client",
-                Scope = string.Join(" ", resourceMetadata.ScopesSupported ?? Array.Empty<string>())
+                Scope = string.Join(" ", _scopes ?? resourceMetadata.ScopesSupported ?? Array.Empty<string>())
             };
-
-            // Register client if the server supports it
-            if (authServerMetadata.RegistrationEndpoint != null)
+            
+            // Register client if needed, or use pre-configured client ID
+            if (!string.IsNullOrEmpty(_clientId))
+            {                
+                _logger.LogDebug("Using pre-configured client ID: {ClientId}", _clientId);
+                
+                // Create a client registration response to store in the context
+                var clientRegistration = new ClientRegistrationResponse
+                {
+                    ClientId = _clientId!, // Using null-forgiving operator since we've already checked it's not null
+                    ClientSecret = _clientSecret,
+                };
+                
+                authContext.Value.ClientRegistration = clientRegistration;
+            }
+            else if (authServerMetadata.RegistrationEndpoint != null)
             {
+                // Register client dynamically
                 _logger.LogDebug("Registering client with authorization server");
                 var clientRegistration = await AuthorizationService.RegisterClientAsync(authServerMetadata, clientMetadata);
                 authContext.Value.ClientRegistration = clientRegistration;
@@ -127,9 +164,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             }
             else
             {
-                _logger.LogWarning("Authorization server does not support dynamic client registration");
+                _logger.LogWarning("Authorization server does not support dynamic client registration and no client ID was provided");
                 
-                var exception = new McpAuthorizationException("Authorization server does not support dynamic client registration");
+                var exception = new McpAuthorizationException(
+                    "Authorization server does not support dynamic client registration and no client ID was provided. " +
+                    "Use McpAuthorizationOptions.ClientId to provide a pre-registered client ID.");
                 exception.ResourceUri = resourceMetadata.Resource;
                 exception.AuthorizationServerUri = authServerUrl;
                 throw exception;
@@ -142,7 +181,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
                 
                 var exception = new McpAuthorizationException(
                     "Authentication is required but no authorization callback was provided. " +
-                    "Use SseClientTransportOptions.AuthorizeCallback to provide a callback function.");
+                    "Use McpAuthorizationOptions.AuthorizeCallback to provide a callback function.");
                 exception.ResourceUri = resourceMetadata.Resource;
                 exception.AuthorizationServerUri = authServerUrl;
                 throw exception;
@@ -155,18 +194,18 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             // Initiate authorization code flow
             _logger.LogDebug("Initiating authorization code flow");
             
-            // Get the registered client ID
-            var clientId = authContext.Value.ClientRegistration!.ClientId;
-            
             // Get the authorization URL that the user needs to visit
             var authUrl = AuthorizationService.CreateAuthorizationUrl(
                 authServerMetadata,
-                clientId,
+                authContext.Value.ClientRegistration.ClientId,
                 clientMetadata.RedirectUris[0],
                 codeChallenge,
-                resourceMetadata.ScopesSupported);
+                _scopes?.ToArray() ?? resourceMetadata.ScopesSupported);
 
             _logger.LogDebug("Authorization URL: {AuthUrl}", authUrl);
+            
+            // Set the authorization URL in the client metadata
+            clientMetadata.ClientUri = authUrl;
 
             // Let the callback handle the user authorization
             var (redirectUri, code) = await _authorizeCallback(clientMetadata);
@@ -176,7 +215,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogDebug("Exchanging authorization code for tokens");
             var tokenResponse = await AuthorizationService.ExchangeCodeForTokensAsync(
                 authServerMetadata,
-                clientId,
+                authContext.Value.ClientRegistration.ClientId,
                 authContext.Value.ClientRegistration.ClientSecret,
                 redirectUri,
                 code,

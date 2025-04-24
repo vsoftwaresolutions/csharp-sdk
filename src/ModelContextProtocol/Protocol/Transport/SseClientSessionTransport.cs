@@ -50,8 +50,16 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         _connectionEstablished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         
         // Initialize the authorization handler
-        _authorizationHandler = transportOptions.AuthorizationHandler ?? 
-                               new DefaultAuthorizationHandler(loggerFactory, transportOptions.AuthorizeCallback);
+        if (transportOptions.AuthorizationOptions?.AuthorizationHandler != null)
+        {
+            // Use explicitly provided handler
+            _authorizationHandler = transportOptions.AuthorizationOptions.AuthorizationHandler;
+        }
+        else
+        {
+            // Create default handler with auth options
+            _authorizationHandler = new DefaultAuthorizationHandler(loggerFactory, transportOptions.AuthorizationOptions);
+        }
     }
 
     /// <inheritdoc/>

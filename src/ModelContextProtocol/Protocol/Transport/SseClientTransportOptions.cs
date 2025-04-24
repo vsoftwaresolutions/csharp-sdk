@@ -59,29 +59,34 @@ public record SseClientTransportOptions
     public Dictionary<string, string>? AdditionalHeaders { get; init; }
 
     /// <summary>
-    /// Gets or sets a delegate that handles the OAuth 2.0 authorization code flow.
+    /// Gets or sets the authorization options to use when connecting to the SSE server.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This delegate is called when the SSE server requires OAuth 2.0 authorization. It receives the client metadata
-    /// and should return the redirect URI and authorization code received from the authorization server.
+    /// These options configure the behavior of client-side authorization with the SSE server.
     /// </para>
     /// <para>
-    /// If not provided, the client will not be able to authenticate with servers that require OAuth authentication.
+    /// You can use this to specify a callback for handling the authorization code flow,
+    /// provide pre-registered client credentials, or configure other aspects of the OAuth flow.
+    /// </para>
+    /// <para>
+    /// Example:
+    /// <code>
+    /// var transportOptions = new SseClientTransportOptions
+    /// {
+    ///     Endpoint = new Uri("http://localhost:7071/sse"),
+    ///     AuthorizationOptions = new McpAuthorizationOptions
+    ///     {
+    ///         ClientId = "my-client-id",
+    ///         ClientSecret = "my-client-secret",
+    ///         RedirectUris = new[] { "http://localhost:8888/callback" },
+    ///         AuthorizeCallback = SseClientTransport.CreateHttpListenerAuthorizeCallback(
+    ///             openBrowser: url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })
+    ///         )
+    ///     }
+    /// };
+    /// </code>
     /// </para>
     /// </remarks>
-    public Func<ClientMetadata, Task<(string RedirectUri, string Code)>>? AuthorizeCallback { get; init; }
-
-    /// <summary>
-    /// Gets or sets a custom authorization handler.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// If specified, this handler will be used to manage authorization with the SSE server.
-    /// </para>
-    /// <para>
-    /// If not provided, a default handler will be created using the <see cref="AuthorizeCallback"/>.
-    /// </para>
-    /// </remarks>
-    public IAuthorizationHandler? AuthorizationHandler { get; init; }
+    public McpAuthorizationOptions? AuthorizationOptions { get; init; }
 }

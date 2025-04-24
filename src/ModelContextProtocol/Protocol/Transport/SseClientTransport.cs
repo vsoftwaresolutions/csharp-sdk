@@ -16,8 +16,6 @@ namespace ModelContextProtocol.Protocol.Transport;
 /// </para>
 /// <para>
 /// The SSE transport can handle OAuth 2.0 authorization flows when connecting to servers that require authentication.
-/// You can provide an <see cref="SseClientTransportOptions.AuthorizeCallback"/> in the transport options to handle the user authentication part
-/// of the OAuth flow.
 /// </para>
 /// </remarks>
 public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
@@ -63,42 +61,84 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
     public string Name { get; }
 
     /// <summary>
-    /// Creates a delegate that can handle the OAuth 2.0 authorization code flow.
+    /// Creates a delegate that can handle the OAuth 2.0 authorization code flow using an HTTP listener.
     /// </summary>
     /// <param name="openBrowser">A function that opens a URL in the browser.</param>
-    /// <param name="listenPort">The local port to listen on for the redirect URI.</param>
-    /// <param name="redirectPath">The path for the redirect URI.</param>
-    /// <returns>A delegate that can be used for the <see cref="SseClientTransportOptions.AuthorizeCallback"/> property.</returns>
+    /// <param name="hostname">The hostname to listen on for the redirect URI. Default is "localhost".</param>
+    /// <param name="listenPort">The port to listen on for the redirect URI. Default is 8888.</param>
+    /// <param name="redirectPath">The path for the redirect URI. Default is "/callback".</param>
+    /// <param name="successHtml">The HTML content to display on successful authorization. If null, a default message is shown.</param>
+    /// <param name="errorHtml">The HTML template to display on failed authorization. If null, a default message is shown. Use {0} as a placeholder for the error message.</param>
+    /// <returns>A delegate that can be used for the <see cref="McpAuthorizationOptions.AuthorizeCallback"/> property.</returns>
     /// <remarks>
     /// <para>
-    /// This method creates a delegate that implements a complete local OAuth 2.0 authorization code flow. 
+    /// This method creates a delegate that implements a complete OAuth 2.0 authorization code flow using an HTTP listener. 
     /// When called, it will:
     /// </para>
     /// <list type="bullet">
     /// <item><description>Open the authorization URL in the browser</description></item>
-    /// <item><description>Start a local HTTP server to listen for the authorization code</description></item>
+    /// <item><description>Start an HTTP listener to receive the authorization code</description></item>
     /// <item><description>Return the redirect URI and authorization code when received</description></item>
     /// </list>
     /// <para>
-    /// You can customize the port and path for the redirect URI. By default, it uses port 8888 and path "/callback".
+    /// You can customize the hostname, port, and path for the redirect URI to match your OAuth client configuration.
     /// </para>
     /// </remarks>
-    public static Func<ClientMetadata, Task<(string RedirectUri, string Code)>> CreateLocalServerAuthorizeCallback(
+    public static Func<ClientMetadata, Task<(string RedirectUri, string Code)>> CreateHttpListenerAuthorizeCallback(
         Func<string, Task> openBrowser,
+        string hostname = "localhost",
         int listenPort = 8888,
-        string redirectPath = "/callback")
+        string redirectPath = "/callback",
+        string? successHtml = null,
+        string? errorHtml = null)
     {
         return async (ClientMetadata clientMetadata) =>
         {
-            var redirectUri = $"http://localhost:{listenPort}{redirectPath}";
+            // Default redirect URI based on parameters
+            var defaultRedirectUri = $"http://{hostname}:{listenPort}{redirectPath}";
+            
+            // First, try to find a matching redirect URI from the client metadata
+            var redirectUri = defaultRedirectUri;
+            var hostPrefix = $"http://{hostname}";
+            
+            foreach (var uri in clientMetadata.RedirectUris)
+            {
+                if (uri.StartsWith(hostPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    redirectUri = uri;
+                    
+                    // Parse the port and path from the selected URI to ensure we listen on the correct endpoint
+                    if (Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri))
+                    {
+                        listenPort = parsedUri.IsDefaultPort ? 80 : parsedUri.Port;
+                        redirectPath = parsedUri.AbsolutePath;
+                    }
+                    
+                    break;
+                }
+            }
             
             // Use a TaskCompletionSource to wait for the authorization code
             var authCodeTcs = new TaskCompletionSource<string>();
             
-            // Start a local HTTP server to listen for the authorization code
+            // Start an HTTP listener to listen for the authorization code
             using var listener = new System.Net.HttpListener();
-            listener.Prefixes.Add($"http://localhost:{listenPort}/");
+            
+            // Ensure the URI format is correct for HttpListener
+            var listenerPrefix = $"http://{hostname}:{listenPort}/";
+            if (redirectPath.Length > 1)
+            {
+                // If path is something like "/callback", we need to listen on all paths that start with it
+                var basePath = redirectPath.TrimEnd('/').TrimStart('/');
+                listenerPrefix = $"http://{hostname}:{listenPort}/{basePath}/";
+            }
+            
+            listener.Prefixes.Add(listenerPrefix);
             listener.Start();
+            
+            // Default HTML responses
+            var defaultSuccessHtml = "<html><body><h1>Authorization Successful</h1><p>You can now close this window and return to the application.</p></body></html>";
+            var defaultErrorHtml = "<html><body><h1>Authorization Failed</h1><p>Error: {0}</p></body></html>";
             
             // Start listening for the callback asynchronously
             var listenerTask = Task.Run(async () =>
@@ -115,20 +155,21 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
                     // Send a response to the browser
                     var response = context.Response;
                     response.ContentType = "text/html";
-                    var responseHtml = "<html><body><h1>Authorization Successful</h1><p>You can now close this window and return to the application.</p></body></html>";
+                    string responseHtml;
                     
                     if (!string.IsNullOrEmpty(error))
                     {
-                        responseHtml = $"<html><body><h1>Authorization Failed</h1><p>Error: {error}</p></body></html>";
+                        responseHtml = string.Format(errorHtml ?? defaultErrorHtml, error);
                         authCodeTcs.SetException(new McpException($"Authorization failed: {error}", McpErrorCode.InvalidRequest));
                     }
                     else if (string.IsNullOrEmpty(code))
                     {
-                        responseHtml = "<html><body><h1>Authorization Failed</h1><p>No authorization code received.</p></body></html>";
+                        responseHtml = string.Format(errorHtml ?? defaultErrorHtml, "No authorization code received");
                         authCodeTcs.SetException(new McpException("No authorization code received", McpErrorCode.InvalidRequest));
                     }
                     else
                     {
+                        responseHtml = successHtml ?? defaultSuccessHtml;
                         authCodeTcs.SetResult(code);
                     }
                     
@@ -148,20 +189,13 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
             });
             
             // Open the authorization URL in the browser
-            foreach (var uri in clientMetadata.RedirectUris)
-            {
-                if (uri.StartsWith("http://localhost"))
-                {
-                    redirectUri = uri;
-                    break;
-                }
-            }
-            
-            // We need to actually open the browser with the authorization URL
-            // Find the auth URL from client metadata and pass to openBrowser
             if (clientMetadata.ClientUri != null)
             {
                 await openBrowser(clientMetadata.ClientUri);
+            }
+            else
+            {
+                authCodeTcs.SetException(new McpException("No authorization URL provided in client metadata", McpErrorCode.InvalidRequest));
             }
             
             // Wait for the authorization code
@@ -169,6 +203,25 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
             
             return (redirectUri, code);
         };
+    }
+
+    /// <summary>
+    /// Creates a delegate that can handle the OAuth 2.0 authorization code flow using a local HTTP listener.
+    /// </summary>
+    /// <param name="openBrowser">A function that opens a URL in the browser.</param>
+    /// <param name="listenPort">The local port to listen on for the redirect URI.</param>
+    /// <param name="redirectPath">The path for the redirect URI.</param>
+    /// <returns>A delegate that can be used for the <see cref="McpAuthorizationOptions.AuthorizeCallback"/> property.</returns>
+    /// <remarks>
+    /// This is a convenience method that calls <see cref="CreateHttpListenerAuthorizeCallback"/> with "localhost" as the hostname.
+    /// </remarks>
+    [Obsolete("Use CreateHttpListenerAuthorizeCallback instead. This method will be removed in a future version.")]
+    public static Func<ClientMetadata, Task<(string RedirectUri, string Code)>> CreateLocalServerAuthorizeCallback(
+        Func<string, Task> openBrowser,
+        int listenPort = 8888,
+        string redirectPath = "/callback")
+    {
+        return CreateHttpListenerAuthorizeCallback(openBrowser, "localhost", listenPort, redirectPath);
     }
 
     /// <inheritdoc />

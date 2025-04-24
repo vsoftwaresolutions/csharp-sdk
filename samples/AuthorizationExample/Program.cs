@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Transport;
 
 namespace AuthorizationExample;
@@ -14,35 +15,76 @@ public class Program
         // Define the MCP server endpoint that requires OAuth authentication
         var serverEndpoint = new Uri("http://localhost:7071/sse");
 
+        // Configuration values for OAuth redirect
+        string hostname = "localhost";
+        int port = 8888;
+        string callbackPath = "/oauth/callback";
+
         // Set up the SSE transport with authorization support
         var transportOptions = new SseClientTransportOptions
         {
             Endpoint = serverEndpoint,
-            AuthorizeCallback = SseClientTransport.CreateLocalServerAuthorizeCallback(
-                 openBrowser: async (url) =>
-                 {
-                     Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-                 }
-             )
+            AuthorizationOptions = new McpAuthorizationOptions
+            {
+                // Pre-registered client credentials (if applicable)
+                ClientId = "my-registered-client-id",
+                ClientSecret = "optional-client-secret",
+                
+                // Specify the exact same redirect URIs that are registered with the OAuth server
+                RedirectUris = new[] 
+                { 
+                    $"http://{hostname}:{port}{callbackPath}" 
+                },
+
+                // Configure the authorize callback with the same hostname, port, and path
+                AuthorizeCallback = SseClientTransport.CreateHttpListenerAuthorizeCallback(
+                    openBrowser: async (url) =>
+                    {
+                        Console.WriteLine($"Opening browser to authorize at: {url}");
+                        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                    },
+                    hostname: hostname,
+                    listenPort: port,
+                    redirectPath: callbackPath,
+                    successHtml: "<html><body><h1>Authorization Successful</h1><p>You have successfully authorized the application. You can close this window and return to the app.</p><script>window.close();</script></body></html>"
+                )
+            }
         };
         
-        // Create the client with authorization-enabled transport
-        var transport = new SseClientTransport(transportOptions);
-        var client = await McpClientFactory.CreateAsync(transport);
-
-        // Print the list of tools available from the server.
-        foreach (var tool in await client.ListToolsAsync())
+        Console.WriteLine("Connecting to MCP server...");
+        
+        try
         {
-            Console.WriteLine($"{tool.Name} ({tool.Description})");
+            // Create the client with authorization-enabled transport
+            var transport = new SseClientTransport(transportOptions);
+            var client = await McpClientFactory.CreateAsync(transport);
+
+            Console.WriteLine("Successfully connected and authorized!");
+            
+            // Print the list of tools available from the server.
+            Console.WriteLine("\nAvailable tools:");
+            foreach (var tool in await client.ListToolsAsync())
+            {
+                Console.WriteLine($"  - {tool.Name}: {tool.Description}");
+            }
+
+            // Execute a tool (this would normally be driven by LLM tool invocations).
+            Console.WriteLine("\nCalling 'echo' tool...");
+            var result = await client.CallToolAsync(
+                "echo",
+                new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
+                cancellationToken: CancellationToken.None);
+
+            // echo always returns one and only one text content object
+            Console.WriteLine($"Tool response: {result.Content.First(c => c.Type == "text").Text}");
         }
-
-        // Execute a tool (this would normally be driven by LLM tool invocations).
-        var result = await client.CallToolAsync(
-            "echo",
-            new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
-            cancellationToken: CancellationToken.None);
-
-        // echo always returns one and only one text content object
-        Console.WriteLine(result.Content.First(c => c.Type == "text").Text);
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Error: {ex.InnerException.Message}");
+            }
+        }
     }
 }
