@@ -1,10 +1,10 @@
+using ModelContextProtocol.Utils;
+using ModelContextProtocol.Utils.Json;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using ModelContextProtocol.Utils;
-using ModelContextProtocol.Utils.Json;
 
 namespace ModelContextProtocol.Protocol.Auth;
 

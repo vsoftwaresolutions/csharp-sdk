@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace ModelContextProtocol.Protocol.Auth;
 
 /// <summary>

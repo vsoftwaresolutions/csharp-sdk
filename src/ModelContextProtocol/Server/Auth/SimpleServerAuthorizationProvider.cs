@@ -1,5 +1,4 @@
 using ModelContextProtocol.Protocol.Auth;
-using System.Security.Claims;
 
 namespace ModelContextProtocol.Server.Auth;
 
@@ -11,24 +10,18 @@ namespace ModelContextProtocol.Server.Auth;
 /// it should be extended or replaced with a more robust implementation that integrates with your 
 /// authentication system (e.g., OAuth 2.0 server, identity provider, etc.)
 /// </remarks>
-public class SimpleServerAuthorizationProvider : IServerAuthorizationProvider
+/// <remarks>
+/// Initializes a new instance of the <see cref="SimpleServerAuthorizationProvider"/> class
+/// with the specified resource metadata and token validator.
+/// </remarks>
+/// <param name="resourceMetadata">The protected resource metadata.</param>
+/// <param name="tokenValidator">A function that validates access tokens. If not provided, a function that always returns true will be used.</param>
+public class SimpleServerAuthorizationProvider(
+    ProtectedResourceMetadata resourceMetadata,
+    Func<string, Task<bool>>? tokenValidator = null) : IServerAuthorizationProvider
 {
-    private readonly ProtectedResourceMetadata _resourceMetadata;
-    private readonly Func<string, Task<bool>> _tokenValidator;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SimpleServerAuthorizationProvider"/> class
-    /// with the specified resource metadata and token validator.
-    /// </summary>
-    /// <param name="resourceMetadata">The protected resource metadata.</param>
-    /// <param name="tokenValidator">A function that validates access tokens. If not provided, a function that always returns true will be used.</param>
-    public SimpleServerAuthorizationProvider(
-        ProtectedResourceMetadata resourceMetadata,
-        Func<string, Task<bool>>? tokenValidator = null)
-    {
-        _resourceMetadata = resourceMetadata ?? throw new ArgumentNullException(nameof(resourceMetadata));
-        _tokenValidator = tokenValidator ?? (_ => Task.FromResult(true));
-    }
+    private readonly ProtectedResourceMetadata _resourceMetadata = resourceMetadata ?? throw new ArgumentNullException(nameof(resourceMetadata));
+    private readonly Func<string, Task<bool>> _tokenValidator = tokenValidator ?? (_ => Task.FromResult(true));
 
     /// <inheritdoc />
     public ProtectedResourceMetadata GetProtectedResourceMetadata() => _resourceMetadata;
