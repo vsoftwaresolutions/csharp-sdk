@@ -17,8 +17,8 @@ public class Program
 
         // Configuration values for OAuth redirect
         string hostname = "localhost";
-        int port = 8888;
-        string callbackPath = "/oauth/callback";
+        int port = 13261;
+        string callbackPath = "/oauth/callback/";
 
         // Set up the SSE transport with authorization support
         var transportOptions = new SseClientTransportOptions

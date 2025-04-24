@@ -205,25 +205,6 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
         };
     }
 
-    /// <summary>
-    /// Creates a delegate that can handle the OAuth 2.0 authorization code flow using a local HTTP listener.
-    /// </summary>
-    /// <param name="openBrowser">A function that opens a URL in the browser.</param>
-    /// <param name="listenPort">The local port to listen on for the redirect URI.</param>
-    /// <param name="redirectPath">The path for the redirect URI.</param>
-    /// <returns>A delegate that can be used for the <see cref="AuthorizationOptions.AuthorizeCallback"/> property.</returns>
-    /// <remarks>
-    /// This is a convenience method that calls <see cref="CreateHttpListenerAuthorizeCallback"/> with "localhost" as the hostname.
-    /// </remarks>
-    [Obsolete("Use CreateHttpListenerAuthorizeCallback instead. This method will be removed in a future version.")]
-    public static Func<ClientMetadata, Task<(string RedirectUri, string Code)>> CreateLocalServerAuthorizeCallback(
-        Func<string, Task> openBrowser,
-        int listenPort = 8888,
-        string redirectPath = "/callback")
-    {
-        return CreateHttpListenerAuthorizeCallback(openBrowser, "localhost", listenPort, redirectPath);
-    }
-
     /// <inheritdoc />
     public async Task<ITransport> ConnectAsync(CancellationToken cancellationToken = default)
     {
