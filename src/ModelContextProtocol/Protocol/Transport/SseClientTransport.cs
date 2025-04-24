@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Utils;
+using System.Net;
+using System.Text;
 
 namespace ModelContextProtocol.Protocol.Transport;
 
@@ -61,147 +63,160 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
     public string Name { get; }
 
     /// <summary>
-    /// Creates a delegate that can handle the OAuth 2.0 authorization code flow using an HTTP listener.
+    /// Creates a callback function for handling OAuth 2.0 authorization flows using an HTTP listener.
     /// </summary>
-    /// <param name="openBrowser">A function that opens a URL in the browser.</param>
-    /// <param name="hostname">The hostname to listen on for the redirect URI. Default is "localhost".</param>
-    /// <param name="listenPort">The port to listen on for the redirect URI. Default is 8888.</param>
-    /// <param name="redirectPath">The path for the redirect URI. Default is "/callback".</param>
-    /// <param name="successHtml">The HTML content to display on successful authorization. If null, a default message is shown.</param>
-    /// <param name="errorHtml">The HTML template to display on failed authorization. If null, a default message is shown. Use {0} as a placeholder for the error message.</param>
-    /// <returns>A delegate that can be used for the <see cref="AuthorizationOptions.AuthorizeCallback"/> property.</returns>
-    /// <remarks>
-    /// <para>
-    /// This method creates a delegate that implements a complete OAuth 2.0 authorization code flow using an HTTP listener. 
-    /// When called, it will:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description>Open the authorization URL in the browser</description></item>
-    /// <item><description>Start an HTTP listener to receive the authorization code</description></item>
-    /// <item><description>Return the redirect URI and authorization code when received</description></item>
-    /// </list>
-    /// <para>
-    /// You can customize the hostname, port, and path for the redirect URI to match your OAuth client configuration.
-    /// </para>
-    /// </remarks>
+    /// <param name="openBrowser">A function to open the browser to the authorization URL.</param>
+    /// <param name="hostname">The hostname for the HTTP listener. Defaults to "localhost".</param>
+    /// <param name="listenPort">The port for the HTTP listener. Defaults to 8888.</param>
+    /// <param name="redirectPath">The redirect path for the HTTP listener. Defaults to "/callback".</param>
+    /// <returns>
+    /// A function that takes <see cref="ClientMetadata"/> and returns a task that resolves to a tuple containing
+    /// the redirect URI and the authorization code.
+    /// </returns>
     public static Func<ClientMetadata, Task<(string RedirectUri, string Code)>> CreateHttpListenerAuthorizeCallback(
         Func<string, Task> openBrowser,
         string hostname = "localhost",
         int listenPort = 8888,
-        string redirectPath = "/callback",
-        string? successHtml = null,
-        string? errorHtml = null)
+        string redirectPath = "/callback")
     {
         return async (ClientMetadata clientMetadata) =>
         {
-            // Default redirect URI based on parameters
-            var defaultRedirectUri = $"http://{hostname}:{listenPort}{redirectPath}";
-            
-            // First, try to find a matching redirect URI from the client metadata
-            var redirectUri = defaultRedirectUri;
-            var hostPrefix = $"http://{hostname}";
-            
+            string redirectUri = $"http://{hostname}:{listenPort}{redirectPath}";
+
             foreach (var uri in clientMetadata.RedirectUris)
             {
-                if (uri.StartsWith(hostPrefix, StringComparison.OrdinalIgnoreCase))
+                if (uri.StartsWith($"http://{hostname}", StringComparison.OrdinalIgnoreCase) &&
+                    Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri))
                 {
                     redirectUri = uri;
-                    
-                    // Parse the port and path from the selected URI to ensure we listen on the correct endpoint
-                    if (Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri))
-                    {
-                        listenPort = parsedUri.IsDefaultPort ? 80 : parsedUri.Port;
-                        redirectPath = parsedUri.AbsolutePath;
-                    }
-                    
+                    listenPort = parsedUri.IsDefaultPort ? 80 : parsedUri.Port;
+                    redirectPath = parsedUri.AbsolutePath;
                     break;
                 }
             }
-            
-            // Use a TaskCompletionSource to wait for the authorization code
+
             var authCodeTcs = new TaskCompletionSource<string>();
-            
-            // Start an HTTP listener to listen for the authorization code
-            using var listener = new System.Net.HttpListener();
-            
-            // Ensure the URI format is correct for HttpListener
-            var listenerPrefix = $"http://{hostname}:{listenPort}/";
-            if (redirectPath.Length > 1)
+            // Ensure the path has a trailing slash for the HttpListener prefix
+            string listenerPrefix = $"http://{hostname}:{listenPort}{redirectPath}";
+            if (!listenerPrefix.EndsWith("/"))
             {
-                // If path is something like "/callback", we need to listen on all paths that start with it
-                var basePath = redirectPath.TrimEnd('/').TrimStart('/');
-                listenerPrefix = $"http://{hostname}:{listenPort}/{basePath}/";
+                listenerPrefix += "/";
             }
-            
+
+            using var listener = new HttpListener();
             listener.Prefixes.Add(listenerPrefix);
-            listener.Start();
             
-            // Default HTML responses
-            var defaultSuccessHtml = "<html><body><h1>Authorization Successful</h1><p>You can now close this window and return to the application.</p></body></html>";
-            var defaultErrorHtml = "<html><body><h1>Authorization Failed</h1><p>Error: {0}</p></body></html>";
+            // Start the listener BEFORE opening the browser
+            try
+            {
+                listener.Start();
+            }
+            catch (HttpListenerException ex)
+            {
+                throw new McpException($"Failed to start HTTP listener on {listenerPrefix}: {ex.Message}", McpErrorCode.InvalidRequest);
+            }
+
+            // Create a cancellation token source with a timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             
-            // Start listening for the callback asynchronously
-            var listenerTask = Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    var context = await listener.GetContextAsync();
-                    var request = context.Request;
+                    // GetContextAsync doesn't accept a cancellation token, so we need to handle cancellation manually
+                    var contextTask = listener.GetContextAsync();
+                    var completedTask = await Task.WhenAny(contextTask, Task.Delay(Timeout.Infinite, cts.Token));
                     
-                    // Get the authorization code from the query string
-                    var code = request.QueryString["code"];
-                    var error = request.QueryString["error"];
-                    
-                    // Send a response to the browser
-                    var response = context.Response;
-                    response.ContentType = "text/html";
-                    string responseHtml;
-                    
-                    if (!string.IsNullOrEmpty(error))
+                    if (completedTask == contextTask)
                     {
-                        responseHtml = string.Format(errorHtml ?? defaultErrorHtml, error);
-                        authCodeTcs.SetException(new McpException($"Authorization failed: {error}", McpErrorCode.InvalidRequest));
+                        var context = await contextTask;
+                        var request = context.Request;
+                        var response = context.Response;
+
+                        string? code = request.QueryString["code"];
+                        string? error = request.QueryString["error"];
+                        string html;
+                        string? resultCode = null;
+
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            html = $"<html><body><h1>Authorization Failed</h1><p>Error: {WebUtility.HtmlEncode(error)}</p></body></html>";
+                        }
+                        else if (string.IsNullOrEmpty(code))
+                        {
+                            html = "<html><body><h1>Authorization Failed</h1><p>No authorization code received.</p></body></html>";
+                        }
+                        else
+                        {
+                            html = "<html><body><h1>Authorization Successful</h1><p>You may now close this window.</p></body></html>";
+                            resultCode = code;
+                        }
+
+                        try
+                        {
+                            // Send response to browser
+                            byte[] buffer = Encoding.UTF8.GetBytes(html);
+                            response.ContentType = "text/html";
+                            response.ContentLength64 = buffer.Length;
+                            response.OutputStream.Write(buffer, 0, buffer.Length);
+                            
+                            // IMPORTANT: Explicitly close the response to ensure it's fully sent
+                            response.Close();
+                            
+                            // Now that we've finished processing the browser response,
+                            // we can safely signal completion or failure with the auth code
+                            if (resultCode != null)
+                            {
+                                authCodeTcs.TrySetResult(resultCode);
+                            }
+                            else if (!string.IsNullOrEmpty(error))
+                            {
+                                authCodeTcs.TrySetException(new McpException($"Authorization failed: {error}", McpErrorCode.InvalidRequest));
+                            }
+                            else
+                            {
+                                authCodeTcs.TrySetException(new McpException("No authorization code received", McpErrorCode.InvalidRequest));
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            authCodeTcs.TrySetException(new McpException($"Error processing browser response: {ex.Message}", McpErrorCode.InvalidRequest));
+                        }
                     }
-                    else if (string.IsNullOrEmpty(code))
-                    {
-                        responseHtml = string.Format(errorHtml ?? defaultErrorHtml, "No authorization code received");
-                        authCodeTcs.SetException(new McpException("No authorization code received", McpErrorCode.InvalidRequest));
-                    }
-                    else
-                    {
-                        responseHtml = successHtml ?? defaultSuccessHtml;
-                        authCodeTcs.SetResult(code);
-                    }
-                    
-                    var buffer = System.Text.Encoding.UTF8.GetBytes(responseHtml);
-                    response.ContentLength64 = buffer.Length;
-                    await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    response.Close();
                 }
                 catch (Exception ex)
                 {
                     authCodeTcs.TrySetException(ex);
                 }
-                finally
-                {
-                    listener.Close();
-                }
             });
-            
-            // Open the authorization URL in the browser
-            if (clientMetadata.ClientUri != null)
+
+            // Now open the browser AFTER the listener is started
+            if (!string.IsNullOrEmpty(clientMetadata.ClientUri))
             {
-                await openBrowser(clientMetadata.ClientUri);
+                await openBrowser(clientMetadata.ClientUri!);
             }
             else
             {
-                authCodeTcs.SetException(new McpException("No authorization URL provided in client metadata", McpErrorCode.InvalidRequest));
+                // Stop the listener before throwing
+                listener.Stop();
+                throw new McpException("Client URI is missing in metadata.", McpErrorCode.InvalidRequest);
             }
-            
-            // Wait for the authorization code
-            var code = await authCodeTcs.Task;
-            
-            return (redirectUri, code);
+
+            try
+            {
+                // Use a timeout to avoid hanging indefinitely
+                string authCode = await authCodeTcs.Task.WaitAsync(cts.Token);
+                return (redirectUri, authCode);
+            }
+            catch (OperationCanceledException)
+            {
+                throw new McpException("Authorization timed out after 5 minutes.", McpErrorCode.InvalidRequest);
+            }
+            finally
+            {
+                // Ensure the listener is stopped when we're done
+                listener.Stop();
+            }
         };
     }
 

@@ -47,8 +47,7 @@ public class Program
                     },
                     hostname: hostname,
                     listenPort: port,
-                    redirectPath: callbackPath,
-                    successHtml: "<html><body><h1>Authorization Successful</h1><p>You have successfully authorized the application. You can close this window and return to the app.</p><script>window.close();</script></body></html>"
+                    redirectPath: callbackPath
                 )
             }
         };
