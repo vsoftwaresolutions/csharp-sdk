@@ -35,11 +35,8 @@ public class Program
         // In a real application, this would verify the token with your identity provider
         async Task<bool> ValidateToken(string token)
         {
-            // For demo purposes, we'll accept any token that starts with "valid_"
-            // In production, you would validate the token with your identity provider
-            var isValid = token.StartsWith("valid_", StringComparison.OrdinalIgnoreCase);
-            Console.WriteLine($"Token validation result: {(isValid ? "Valid" : "Invalid")}");
-            return isValid;
+            // For demo purposes, we'll accept any token.
+            return true;
         }
 
         // 3. Create an authorization provider with the PRM and token validator

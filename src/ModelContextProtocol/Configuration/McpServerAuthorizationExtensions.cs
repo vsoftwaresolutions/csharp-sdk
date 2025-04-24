@@ -24,13 +24,12 @@ public static class McpServerAuthorizationExtensions
         Throw.IfNull(builder);
         Throw.IfNull(authorizationProvider);
 
+        // Register the authorization provider in the DI container
+        builder.Services.AddSingleton(authorizationProvider);
+
         builder.Services.Configure<McpServerOptions>(options =>
         {
             options.Capabilities ??= new ServerCapabilities();
-            options.Capabilities.Authorization = new AuthorizationCapability
-            {
-                AuthorizationProvider = authorizationProvider
-            };
         });
 
         return builder;

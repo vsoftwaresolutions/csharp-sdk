@@ -328,7 +328,6 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
             ServerCapabilities = new()
             {
                 Experimental = options.Capabilities?.Experimental,
-                Authorization = options.Capabilities?.Authorization,
                 Logging = options.Capabilities?.Logging,
                 Tools = options.Capabilities?.Tools,
                 Resources = options.Capabilities?.Resources,
@@ -427,7 +426,6 @@ internal sealed class McpServer : McpEndpoint, IMcpServer
             ServerCapabilities = new()
             {
                 Experimental = options.Capabilities?.Experimental,
-                Authorization = options.Capabilities?.Authorization,
                 Logging = options.Capabilities?.Logging,
                 Prompts = options.Capabilities?.Prompts,
                 Resources = options.Capabilities?.Resources,

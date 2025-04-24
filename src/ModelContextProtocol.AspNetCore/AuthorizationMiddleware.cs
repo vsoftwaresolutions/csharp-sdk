@@ -32,13 +32,14 @@ internal class AuthorizationMiddleware
     /// </summary>
     /// <param name="context">The HTTP context.</param>
     /// <param name="serverOptions">The MCP server options.</param>
+    /// <param name="authProvider">The authorization provider.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task InvokeAsync(HttpContext context, IOptions<McpServerOptions> serverOptions)
+    public async Task InvokeAsync(
+        HttpContext context, 
+        IOptions<McpServerOptions> serverOptions,
+        IServerAuthorizationProvider? authProvider = null)
     {
         // Check if authorization is configured
-        var authCapability = serverOptions.Value.Capabilities?.Authorization;
-        var authProvider = authCapability?.AuthorizationProvider;
-
         if (authProvider == null)
         {
             // Authorization is not configured, proceed to the next middleware

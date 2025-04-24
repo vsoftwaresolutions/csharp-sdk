@@ -1,9 +1,8 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Utils;
+using System.Net;
+using System.Net.Http.Headers;
 
 namespace ModelContextProtocol.Protocol.Auth;
 

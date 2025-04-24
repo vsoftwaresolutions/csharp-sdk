@@ -86,6 +86,8 @@ public class Program
             {
                 Console.WriteLine($"Inner Error: {ex.InnerException.Message}");
             }
+            // Print the stack trace for debugging
+            Console.WriteLine($"Stack Trace:\n{ex.StackTrace}");
         }
     }
 }

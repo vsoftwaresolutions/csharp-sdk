@@ -89,29 +89,12 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         if (_messageEndpoint == null)
             throw new InvalidOperationException("Transport not connected");
 
-        using var content = new StringContent(
-            JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
-            Encoding.UTF8,
-            "application/json"
-        );
-
         string messageId = "(no id)";
 
         if (message is JsonRpcMessageWithId messageWithId)
         {
             messageId = messageWithId.Id.ToString();
         }
-
-        using var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
-        {
-            Content = content,
-        };
-        
-        // Add authorization headers if needed
-        await _authorizationHandler.AuthenticateRequestAsync(httpRequestMessage).ConfigureAwait(false);
-        
-        // Copy additional headers
-        CopyAdditionalHeaders(httpRequestMessage.Headers);
         
         // Send the request, handling potential auth challenges
         HttpResponseMessage? response = null;
@@ -120,37 +103,32 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         do
         {
             authRetry = false;
-            response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
             
-            // Handle 401 Unauthorized response
+            // Create a new request for each attempt
+            using var currentRequest = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint);
+            currentRequest.Content = new StringContent(
+                JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
+                Encoding.UTF8,
+                "application/json"
+            );
+            
+            // Add authorization headers if needed - the handler will only add headers if auth is required
+            await _authorizationHandler.AuthenticateRequestAsync(currentRequest).ConfigureAwait(false);
+            
+            // Copy additional headers
+            CopyAdditionalHeaders(currentRequest.Headers);
+            
+            // Dispose previous response before making a new request
+            response?.Dispose();
+            
+            response = await _httpClient.SendAsync(currentRequest, cancellationToken).ConfigureAwait(false);
+            
+            // Handle 401 Unauthorized response - this will only execute if the server requires auth
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 // Try to handle the unauthorized response
                 authRetry = await _authorizationHandler.HandleUnauthorizedResponseAsync(
                     response, _messageEndpoint).ConfigureAwait(false);
-                
-                if (authRetry)
-                {
-                    // Create a new request (we can't reuse the previous one)
-                    using var newRequest = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
-                    {
-                        Content = new StringContent(
-                            JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
-                            Encoding.UTF8,
-                            "application/json"
-                        )
-                    };
-                    
-                    // Add authorization headers for the new request
-                    await _authorizationHandler.AuthenticateRequestAsync(newRequest).ConfigureAwait(false);
-                    CopyAdditionalHeaders(newRequest.Headers);
-                    
-                    // Dispose the previous response
-                    response.Dispose();
-                    
-                    // Send the new request
-                    response = await _httpClient.SendAsync(newRequest, cancellationToken).ConfigureAwait(false);
-                }
             }
         } while (authRetry);
 
@@ -252,15 +230,6 @@ internal sealed partial class SseClientSessionTransport : TransportBase
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, _sseEndpoint);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-            
-            // Add authorization headers if needed
-            await _authorizationHandler.AuthenticateRequestAsync(request).ConfigureAwait(false);
-            
-            // Copy additional headers
-            CopyAdditionalHeaders(request.Headers);
-
             // Send the request, handling potential auth challenges
             HttpResponseMessage? response = null;
             bool authRetry = false;
@@ -268,39 +237,32 @@ internal sealed partial class SseClientSessionTransport : TransportBase
             do
             {
                 authRetry = false;
+                
+                // Create a new request for each attempt
+                using var currentRequest = new HttpRequestMessage(HttpMethod.Get, _sseEndpoint);
+                currentRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+                
+                // Add authorization headers if needed - the handler will only add headers if auth is required
+                await _authorizationHandler.AuthenticateRequestAsync(currentRequest).ConfigureAwait(false);
+                
+                // Copy additional headers
+                CopyAdditionalHeaders(currentRequest.Headers);
+                
+                // Dispose previous response before making a new request
+                response?.Dispose();
+                
                 response = await _httpClient.SendAsync(
-                    request,
+                    currentRequest,
                     HttpCompletionOption.ResponseHeadersRead,
                     cancellationToken
                 ).ConfigureAwait(false);
                 
-                // Handle 401 Unauthorized response
+                // Handle 401 Unauthorized response - this will only execute if the server requires auth
                 if (response.StatusCode == HttpStatusCode.Unauthorized)
                 {
                     // Try to handle the unauthorized response
                     authRetry = await _authorizationHandler.HandleUnauthorizedResponseAsync(
                         response, _sseEndpoint).ConfigureAwait(false);
-                    
-                    if (authRetry)
-                    {
-                        // Create a new request (we can't reuse the previous one)
-                        using var newRequest = new HttpRequestMessage(HttpMethod.Get, _sseEndpoint);
-                        newRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-                        
-                        // Add authorization headers for the new request
-                        await _authorizationHandler.AuthenticateRequestAsync(newRequest).ConfigureAwait(false);
-                        CopyAdditionalHeaders(newRequest.Headers);
-                        
-                        // Dispose the previous response
-                        response.Dispose();
-                        
-                        // Send the new request
-                        response = await _httpClient.SendAsync(
-                            newRequest,
-                            HttpCompletionOption.ResponseHeadersRead,
-                            cancellationToken
-                        ).ConfigureAwait(false);
-                    }
                 }
             } while (authRetry);
 

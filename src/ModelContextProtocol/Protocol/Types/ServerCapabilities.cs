@@ -36,12 +36,6 @@ public class ServerCapabilities
     public Dictionary<string, object>? Experimental { get; set; }
 
     /// <summary>
-    /// Gets or sets a server's authorization capability, supporting OAuth 2.0 authorization flows.
-    /// </summary>
-    [JsonPropertyName("authorization")]
-    public AuthorizationCapability? Authorization { get; set; }
-
-    /// <summary>
     /// Gets or sets a server's logging capability, supporting sending log messages to the client.
     /// </summary>
     [JsonPropertyName("logging")]
