@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol.Auth;
-using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server;
 using ModelContextProtocol.Utils.Json;
 using System.Text.Json;
@@ -12,17 +11,17 @@ namespace ModelContextProtocol.AspNetCore;
 /// <summary>
 /// Middleware that handles authorization for MCP servers.
 /// </summary>
-internal class McpAuthorizationMiddleware
+internal class AuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ILogger<McpAuthorizationMiddleware> _logger;
+    private readonly ILogger<AuthorizationMiddleware> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="McpAuthorizationMiddleware"/> class.
+    /// Initializes a new instance of the <see cref="AuthorizationMiddleware"/> class.
     /// </summary>
     /// <param name="next">The next middleware in the pipeline.</param>
     /// <param name="logger">The logger factory.</param>
-    public McpAuthorizationMiddleware(RequestDelegate next, ILogger<McpAuthorizationMiddleware> logger)
+    public AuthorizationMiddleware(RequestDelegate next, ILogger<AuthorizationMiddleware> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

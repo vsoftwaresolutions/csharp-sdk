@@ -9,7 +9,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// This interface is implemented by authorization providers that enable MCP servers to validate tokens
 /// and control access to protected resources.
 /// </remarks>
-public interface IMcpServerAuthorizationProvider
+public interface IServerAuthorizationProvider
 {
     /// <summary>
     /// Gets the Protected Resource Metadata (PRM) for the server.

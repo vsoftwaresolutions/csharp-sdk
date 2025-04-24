@@ -19,7 +19,7 @@ public static class McpServerAuthorizationExtensions
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> or <paramref name="authorizationProvider"/> is <see langword="null"/>.</exception>
     public static IMcpServerBuilder WithAuthorization(
         this IMcpServerBuilder builder,
-        IMcpServerAuthorizationProvider authorizationProvider)
+        IServerAuthorizationProvider authorizationProvider)
     {
         Throw.IfNull(builder);
         Throw.IfNull(authorizationProvider);

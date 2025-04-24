@@ -25,7 +25,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
     /// </summary>
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="options">The authorization options.</param>
-    public DefaultAuthorizationHandler(ILoggerFactory? loggerFactory = null, McpAuthorizationOptions? options = null)
+    public DefaultAuthorizationHandler(ILoggerFactory? loggerFactory = null, AuthorizationOptions? options = null)
     {
         _logger = loggerFactory != null 
             ? loggerFactory.CreateLogger<DefaultAuthorizationHandler>() 
@@ -47,7 +47,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="authorizeCallback">A callback function that handles the authorization code flow.</param>
     public DefaultAuthorizationHandler(ILoggerFactory? loggerFactory = null, Func<ClientMetadata, Task<(string RedirectUri, string Code)>>? authorizeCallback = null)
-        : this(loggerFactory, new McpAuthorizationOptions { AuthorizeCallback = authorizeCallback })
+        : this(loggerFactory, new AuthorizationOptions { AuthorizeCallback = authorizeCallback })
     {
     }
 
@@ -90,7 +90,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogWarning("Failed to extract resource metadata from 401 response");
 
             // Create a more specific exception
-            var exception = new McpAuthorizationException("Authorization required but no resource metadata available")
+            var exception = new AuthorizationException("Authorization required but no resource metadata available")
             {
                 ResourceUri = serverUri.ToString()
             };
@@ -106,7 +106,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogWarning("Resource URL mismatch: expected {Expected}, got {Actual}", 
                 serverUri, resourceMetadata.Resource);
             
-            var exception = new McpAuthorizationException($"Resource URL mismatch: expected {serverUri}, got {resourceMetadata.Resource}");
+            var exception = new AuthorizationException($"Resource URL mismatch: expected {serverUri}, got {resourceMetadata.Resource}");
             exception.ResourceUri = resourceMetadata.Resource;
             throw exception;
         }
@@ -116,7 +116,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
         {
             _logger.LogWarning("No authorization servers found in resource metadata");
             
-            var exception = new McpAuthorizationException("No authorization servers available");
+            var exception = new AuthorizationException("No authorization servers available");
             exception.ResourceUri = resourceMetadata.Resource;
             throw exception;
         }
@@ -166,7 +166,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             {
                 _logger.LogWarning("Authorization server does not support dynamic client registration and no client ID was provided");
                 
-                var exception = new McpAuthorizationException(
+                var exception = new AuthorizationException(
                     "Authorization server does not support dynamic client registration and no client ID was provided. " +
                     "Use McpAuthorizationOptions.ClientId to provide a pre-registered client ID.");
                 exception.ResourceUri = resourceMetadata.Resource;
@@ -179,7 +179,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             {
                 _logger.LogWarning("No authorization callback provided, can't proceed with OAuth flow");
                 
-                var exception = new McpAuthorizationException(
+                var exception = new AuthorizationException(
                     "Authentication is required but no authorization callback was provided. " +
                     "Use McpAuthorizationOptions.AuthorizeCallback to provide a callback function.");
                 exception.ResourceUri = resourceMetadata.Resource;
@@ -227,11 +227,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             _logger.LogDebug("Successfully obtained access token");
             return true;
         }
-        catch (Exception ex) when (ex is not McpAuthorizationException)
+        catch (Exception ex) when (ex is not AuthorizationException)
         {
             _logger.LogError(ex, "Failed to complete authorization flow");
             
-            var authException = new McpAuthorizationException(
+            var authException = new AuthorizationException(
                 $"Failed to complete authorization flow: {ex.Message}", ex, McpErrorCode.InvalidRequest);
             
             authException.ResourceUri = resourceMetadata.Resource;

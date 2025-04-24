@@ -69,7 +69,7 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
     /// <param name="redirectPath">The path for the redirect URI. Default is "/callback".</param>
     /// <param name="successHtml">The HTML content to display on successful authorization. If null, a default message is shown.</param>
     /// <param name="errorHtml">The HTML template to display on failed authorization. If null, a default message is shown. Use {0} as a placeholder for the error message.</param>
-    /// <returns>A delegate that can be used for the <see cref="McpAuthorizationOptions.AuthorizeCallback"/> property.</returns>
+    /// <returns>A delegate that can be used for the <see cref="AuthorizationOptions.AuthorizeCallback"/> property.</returns>
     /// <remarks>
     /// <para>
     /// This method creates a delegate that implements a complete OAuth 2.0 authorization code flow using an HTTP listener. 
@@ -211,7 +211,7 @@ public sealed class SseClientTransport : IClientTransport, IAsyncDisposable
     /// <param name="openBrowser">A function that opens a URL in the browser.</param>
     /// <param name="listenPort">The local port to listen on for the redirect URI.</param>
     /// <param name="redirectPath">The path for the redirect URI.</param>
-    /// <returns>A delegate that can be used for the <see cref="McpAuthorizationOptions.AuthorizeCallback"/> property.</returns>
+    /// <returns>A delegate that can be used for the <see cref="AuthorizationOptions.AuthorizeCallback"/> property.</returns>
     /// <remarks>
     /// This is a convenience method that calls <see cref="CreateHttpListenerAuthorizeCallback"/> with "localhost" as the hostname.
     /// </remarks>

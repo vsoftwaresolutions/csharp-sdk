@@ -15,5 +15,5 @@ public class AuthorizationCapability
     /// Gets or sets the authorization provider that handles token validation and provides
     /// metadata about the protected resource.
     /// </summary>
-    public IMcpServerAuthorizationProvider? AuthorizationProvider { get; set; }
+    public IServerAuthorizationProvider? AuthorizationProvider { get; set; }
 }

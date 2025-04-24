@@ -6,7 +6,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// <summary>
 /// Provides authorization options for MCP clients.
 /// </summary>
-public class McpAuthorizationOptions
+public class AuthorizationOptions
 {
     /// <summary>
     /// Gets or sets a delegate that handles the OAuth 2.0 authorization code flow.

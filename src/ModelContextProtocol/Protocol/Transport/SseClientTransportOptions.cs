@@ -88,5 +88,5 @@ public record SseClientTransportOptions
     /// </code>
     /// </para>
     /// </remarks>
-    public McpAuthorizationOptions? AuthorizationOptions { get; init; }
+    public AuthorizationOptions? AuthorizationOptions { get; init; }
 }

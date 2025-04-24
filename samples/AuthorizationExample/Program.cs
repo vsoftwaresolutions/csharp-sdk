@@ -24,7 +24,7 @@ public class Program
         var transportOptions = new SseClientTransportOptions
         {
             Endpoint = serverEndpoint,
-            AuthorizationOptions = new McpAuthorizationOptions
+            AuthorizationOptions = new AuthorizationOptions
             {
                 // Pre-registered client credentials (if applicable)
                 ClientId = "04f79824-ab56-4511-a7cb-d7deaea92dc0",

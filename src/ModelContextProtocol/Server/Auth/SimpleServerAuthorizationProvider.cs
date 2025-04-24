@@ -4,14 +4,14 @@ using System.Security.Claims;
 namespace ModelContextProtocol.Server.Auth;
 
 /// <summary>
-/// A simple implementation of <see cref="IMcpServerAuthorizationProvider"/> that validates bearer tokens.
+/// A simple implementation of <see cref="IServerAuthorizationProvider"/> that validates bearer tokens.
 /// </summary>
 /// <remarks>
 /// This implementation is intended as a starting point for server developers. In production environments,
 /// it should be extended or replaced with a more robust implementation that integrates with your 
 /// authentication system (e.g., OAuth 2.0 server, identity provider, etc.)
 /// </remarks>
-public class SimpleServerAuthorizationProvider : IMcpServerAuthorizationProvider
+public class SimpleServerAuthorizationProvider : IServerAuthorizationProvider
 {
     private readonly ProtectedResourceMetadata _resourceMetadata;
     private readonly Func<string, Task<bool>> _tokenValidator;
