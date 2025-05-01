@@ -8,7 +8,7 @@ internal class AuthorizationContext
     /// <summary>
     /// Gets or sets the resource metadata.
     /// </summary>
-    public ResourceMetadata? ResourceMetadata { get; set; }
+    public ProtectedResourceMetadata? ResourceMetadata { get; set; }
 
     /// <summary>
     /// Gets or sets the authorization server metadata.

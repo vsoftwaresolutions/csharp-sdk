@@ -17,13 +17,13 @@ public class ProtectedResourceMetadata
     /// Gets or sets the resource identifier URI.
     /// </summary>
     [JsonPropertyName("resource")]
-    public required string Resource { get; set; }
+    public required Uri Resource { get; set; }
 
     /// <summary>
     /// Gets or sets the authorization servers that can be used for authentication.
     /// </summary>
     [JsonPropertyName("authorization_servers")]
-    public required string[] AuthorizationServers { get; set; }
+    public required Uri[] AuthorizationServers { get; set; }
 
     /// <summary>
     /// Gets or sets the bearer token methods supported by the resource.
@@ -41,18 +41,5 @@ public class ProtectedResourceMetadata
     /// Gets or sets the URL to the resource documentation.
     /// </summary>
     [JsonPropertyName("resource_documentation")]
-    public string? ResourceDocumentation { get; set; }
-
-    /// <summary>
-    /// Converts this <see cref="ProtectedResourceMetadata"/> to the internal <see cref="ResourceMetadata"/> type.
-    /// </summary>
-    /// <returns>A <see cref="ResourceMetadata"/> instance with the same values as this instance.</returns>
-    internal ResourceMetadata ToResourceMetadata() => new()
-    {
-        Resource = Resource,
-        AuthorizationServers = AuthorizationServers,
-        BearerMethodsSupported = BearerMethodsSupported,
-        ScopesSupported = ScopesSupported,
-        ResourceDocumentation = ResourceDocumentation
-    };
+    public Uri? ResourceDocumentation { get; set; }
 }

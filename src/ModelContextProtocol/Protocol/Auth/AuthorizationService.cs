@@ -26,7 +26,7 @@ public class AuthorizationService
     /// </summary>
     /// <param name="response">The HTTP response that contains the WWW-Authenticate header.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the resource metadata if available.</returns>
-    public static async Task<ResourceMetadata?> GetResourceMetadataFromResponseAsync(HttpResponseMessage response)
+    public static async Task<ProtectedResourceMetadata?> GetResourceMetadataFromResponseAsync(HttpResponseMessage response)
     {
         if (response.StatusCode != HttpStatusCode.Unauthorized)
         {
@@ -71,7 +71,7 @@ public class AuthorizationService
             // Read as string first, then deserialize using source-generated serializer
             using var reader = new StreamReader(contentStream);
             var json = await reader.ReadToEndAsync();
-            return JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ResourceMetadata);
+            return JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ProtectedResourceMetadata);
         }
         catch (Exception)
         {

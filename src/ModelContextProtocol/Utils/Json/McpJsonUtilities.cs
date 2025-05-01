@@ -124,7 +124,6 @@ public static partial class McpJsonUtilities
     [JsonSerializable(typeof(IReadOnlyDictionary<string, object>))]
     
     // Authorization-related types
-    [JsonSerializable(typeof(Protocol.Auth.ResourceMetadata))]
     [JsonSerializable(typeof(Protocol.Auth.ProtectedResourceMetadata))]
     [JsonSerializable(typeof(Protocol.Auth.AuthorizationServerMetadata))]
     [JsonSerializable(typeof(Protocol.Auth.ClientMetadata))]
