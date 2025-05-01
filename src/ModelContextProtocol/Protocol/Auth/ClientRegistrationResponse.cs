@@ -5,7 +5,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// <summary>
 /// Represents the OAuth 2.0 client registration response as defined in RFC 7591.
 /// </summary>
-internal class ClientRegistrationResponse
+public class ClientRegistrationResponse
 {
     /// <summary>
     /// Gets or sets the OAuth 2.0 client identifier string.

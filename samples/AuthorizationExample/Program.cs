@@ -36,10 +36,8 @@ public class Program
                 RedirectUris = new[] 
                 { 
                     $"http://{hostname}:{port}{callbackPath}" 
-                },
-
-                // Configure the authorize callback with the same hostname, port, and path
-                AuthorizeCallback = SseClientTransport.CreateHttpListenerAuthorizeCallback(
+                },                // Configure the authorize callback with the same hostname, port, and path
+                AuthorizeCallback = AuthorizationService.CreateHttpListenerAuthorizeCallback(
                     openBrowser: async (url) =>
                     {
                         Console.WriteLine($"Opening browser to authorize at: {url}");

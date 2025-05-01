@@ -5,7 +5,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// <summary>
 /// Represents the resource metadata from the WWW-Authenticate header in a 401 Unauthorized response.
 /// </summary>
-internal class ResourceMetadata
+public class ResourceMetadata
 {
     /// <summary>
     /// Gets or sets the resource identifier URI.

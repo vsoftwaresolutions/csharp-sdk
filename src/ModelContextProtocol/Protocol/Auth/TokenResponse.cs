@@ -5,7 +5,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// <summary>
 /// Represents the OAuth 2.0 token response as defined in RFC 6749.
 /// </summary>
-internal class TokenResponse
+public class TokenResponse
 {
     /// <summary>
     /// Gets or sets the access token issued by the authorization server.

@@ -73,14 +73,13 @@ public record SseClientTransportOptions
     /// Example:
     /// <code>
     /// var transportOptions = new SseClientTransportOptions
-    /// {
-    ///     Endpoint = new Uri("http://localhost:7071/sse"),
+    /// {    ///     Endpoint = new Uri("http://localhost:7071/sse"),
     ///     AuthorizationOptions = new McpAuthorizationOptions
     ///     {
     ///         ClientId = "my-client-id",
     ///         ClientSecret = "my-client-secret",
     ///         RedirectUris = new[] { "http://localhost:8888/callback" },
-    ///         AuthorizeCallback = SseClientTransport.CreateHttpListenerAuthorizeCallback(
+    ///         AuthorizeCallback = AuthorizationService.CreateHttpListenerAuthorizeCallback(
     ///             openBrowser: url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })
     ///         )
     ///     }

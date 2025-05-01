@@ -5,7 +5,7 @@ namespace ModelContextProtocol.Protocol.Auth;
 /// <summary>
 /// Represents OAuth 2.0 authorization server metadata as defined in RFC 8414.
 /// </summary>
-internal class AuthorizationServerMetadata
+public class AuthorizationServerMetadata
 {
     /// <summary>
     /// Gets or sets the authorization endpoint URL.
