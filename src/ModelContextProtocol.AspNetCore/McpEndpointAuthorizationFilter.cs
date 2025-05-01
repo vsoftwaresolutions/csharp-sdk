@@ -1,4 +1,3 @@
-// filepath: c:\Users\ddelimarsky\source\csharp-sdk\src\ModelContextProtocol.AspNetCore\McpEndpointAuthorizationFilter.cs
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol.Auth;
