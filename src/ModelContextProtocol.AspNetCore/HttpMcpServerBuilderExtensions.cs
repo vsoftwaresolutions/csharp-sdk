@@ -18,12 +18,13 @@ public static class HttpMcpServerBuilderExtensions
     /// <param name="configureOptions">Configures options for the Streamable HTTP transport. This allows configuring per-session
     /// <see cref="McpServerOptions"/> and running logic before and after a session.</param>
     /// <returns>The builder provided in <paramref name="builder"/>.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>    
     public static IMcpServerBuilder WithHttpTransport(this IMcpServerBuilder builder, Action<HttpServerTransportOptions>? configureOptions = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton<StreamableHttpHandler>();
         builder.Services.TryAddSingleton<SseHandler>();
+        builder.Services.TryAddSingleton<McpAuthorizationFilterFactory>();
         builder.Services.AddHostedService<IdleTrackingBackgroundService>();
 
         if (configureOptions is not null)

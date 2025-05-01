@@ -2,7 +2,9 @@
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Messages;
 using System.Diagnostics.CodeAnalysis;
 
@@ -20,11 +22,35 @@ public static class McpEndpointRouteBuilderExtensions
     /// </summary>
     /// <param name="endpoints">The web application to attach MCP HTTP endpoints.</param>
     /// <param name="pattern">The route pattern prefix to map to.</param>
-    /// <returns>Returns a builder for configuring additional endpoint conventions like authorization policies.</returns>
+    /// <returns>Returns a builder for configuring additional endpoint conventions like authorization policies.</returns>    
     public static IEndpointConventionBuilder MapMcp(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")] string pattern = "")
     {
         var streamableHttpHandler = endpoints.ServiceProvider.GetService<StreamableHttpHandler>() ??
             throw new InvalidOperationException("You must call WithHttpTransport(). Unable to find required services. Call builder.Services.AddMcpServer().WithHttpTransport() in application startup code.");
+
+        // Map the protected resource metadata endpoint if authorization is configured
+        var authProvider = endpoints.ServiceProvider.GetService<IServerAuthorizationProvider>();
+        if (authProvider != null)
+        {
+            // Create and register the ProtectedResourceMetadataHandler if it's not already registered
+            ProtectedResourceMetadataHandler? prmHandler = null;
+            try
+            {
+                prmHandler = endpoints.ServiceProvider.GetService<ProtectedResourceMetadataHandler>();
+            }
+            catch
+            {
+                // Ignore - we'll create it below
+            }
+
+            if (prmHandler == null)
+            {
+                var logger = endpoints.ServiceProvider.GetRequiredService<ILogger<ProtectedResourceMetadataHandler>>();
+                prmHandler = new ProtectedResourceMetadataHandler(logger, authProvider);
+            }
+
+            endpoints.MapGet("/.well-known/oauth-protected-resource", prmHandler.HandleAsync);
+        }
 
         var mcpGroup = endpoints.MapGroup(pattern);
         var streamableHttpGroup = mcpGroup.MapGroup("")
@@ -43,6 +69,16 @@ public static class McpEndpointRouteBuilderExtensions
         var sseHandler = endpoints.ServiceProvider.GetRequiredService<SseHandler>();
         var sseGroup = mcpGroup.MapGroup("")
             .WithDisplayName(b => $"MCP HTTP with SSE | {b.DisplayName}");
+
+        // Apply authorization filter to SSE endpoints if authorization is configured
+        if (authProvider != null)
+        {
+            // Create the filter factory
+            var filterFactory = endpoints.ServiceProvider.GetRequiredService<McpAuthorizationFilterFactory>();
+            
+            // Apply filter to SSE and message endpoints
+            sseGroup.AddEndpointFilterFactory(filterFactory.Create);
+        }
 
         sseGroup.MapGet("/sse", sseHandler.HandleSseRequestAsync)
             .WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status200OK, contentTypes: ["text/event-stream"]));

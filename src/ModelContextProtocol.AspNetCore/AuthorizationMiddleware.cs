@@ -47,8 +47,9 @@ internal class AuthorizationMiddleware
             return;
         }
 
-        // Handle the PRM document endpoint
-        if (context.Request.Path.StartsWithSegments("/.well-known/oauth-protected-resource"))
+        // Handle the PRM document endpoint if not handled by the endpoint
+        if (context.Request.Path.StartsWithSegments("/.well-known/oauth-protected-resource") &&
+            context.GetEndpoint() == null)
         {
             _logger.LogDebug("Serving Protected Resource Metadata document");
             context.Response.ContentType = "application/json";
@@ -59,40 +60,8 @@ internal class AuthorizationMiddleware
             return;
         }
 
-        // Serve SSE and message endpoints with authorization
-        if (context.Request.Path.StartsWithSegments("/sse") || 
-            (context.Request.Path.Value?.EndsWith("/message") == true))
-        {
-            // Check if the Authorization header is present
-            if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || string.IsNullOrEmpty(authHeader))
-            {
-                // No Authorization header present, return 401 Unauthorized
-                var prm = authProvider.GetProtectedResourceMetadata();
-                var prmUrl = GetPrmUrl(context, prm.Resource);
-                
-                _logger.LogDebug("Authorization required, returning 401 Unauthorized with WWW-Authenticate header");
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.Headers.Append("WWW-Authenticate", $"Bearer resource_metadata=\"{prmUrl}\"");
-                return;
-            }
-
-            // Validate the token - ensuring authHeader is a non-null string
-            string authHeaderValue = authHeader.ToString();
-            bool isValid = await authProvider.ValidateTokenAsync(authHeaderValue);
-            if (!isValid)
-            {
-                // Invalid token, return 401 Unauthorized
-                var prm = authProvider.GetProtectedResourceMetadata();
-                var prmUrl = GetPrmUrl(context, prm.Resource);
-                
-                _logger.LogDebug("Invalid authorization token, returning 401 Unauthorized");
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.Headers.Append("WWW-Authenticate", $"Bearer resource_metadata=\"{prmUrl}\"");
-                return;
-            }
-        }
-
-        // Token is valid or endpoint doesn't require authentication, proceed to the next middleware
+        // Proceed to the next middleware - authorization for SSE and message endpoints
+        // is now handled by endpoint filters
         await _next(context);
     }
 
