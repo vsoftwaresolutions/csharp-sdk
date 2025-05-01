@@ -25,7 +25,6 @@ public static class HttpMcpServerBuilderExtensions
 
         builder.Services.TryAddSingleton<StreamableHttpHandler>();
         builder.Services.TryAddSingleton<SseHandler>();
-        builder.Services.TryAddSingleton<McpAuthorizationFilterFactory>();
         builder.Services.AddHostedService<IdleTrackingBackgroundService>();
 
         if (configureOptions is not null)

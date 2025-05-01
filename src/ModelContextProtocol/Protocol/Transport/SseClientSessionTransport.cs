@@ -1,11 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Messages;
 using ModelContextProtocol.Utils;
 using ModelContextProtocol.Utils.Json;
 using System.Diagnostics;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.ServerSentEvents;
 using System.Text;
@@ -26,7 +24,6 @@ internal sealed partial class SseClientSessionTransport : TransportBase
     private Task? _receiveTask;
     private readonly ILogger _logger;
     private readonly TaskCompletionSource<bool> _connectionEstablished;
-    private readonly IAuthorizationHandler _authorizationHandler;
 
     /// <summary>
     /// SSE transport for client endpoints. Unlike stdio it does not launch a process, but connects to an existing server.
@@ -48,18 +45,6 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         _connectionCts = new CancellationTokenSource();
         _logger = (ILogger?)loggerFactory?.CreateLogger<SseClientTransport>() ?? NullLogger.Instance;
         _connectionEstablished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        
-        // Initialize the authorization handler
-        if (transportOptions.AuthorizationOptions?.AuthorizationHandler != null)
-        {
-            // Use explicitly provided handler
-            _authorizationHandler = transportOptions.AuthorizationOptions.AuthorizationHandler;
-        }
-        else
-        {
-            // Create default handler with auth options
-            _authorizationHandler = new DefaultAuthorizationHandler(loggerFactory, transportOptions.AuthorizationOptions);
-        }
     }
 
     /// <inheritdoc/>
@@ -89,48 +74,18 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         if (_messageEndpoint == null)
             throw new InvalidOperationException("Transport not connected");
 
+        using var content = new StringContent(
+            JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
+            Encoding.UTF8,
+            "application/json"
+        );
+
         string messageId = "(no id)";
 
         if (message is JsonRpcMessageWithId messageWithId)
         {
             messageId = messageWithId.Id.ToString();
         }
-        
-        // Send the request, handling potential auth challenges
-        HttpResponseMessage? response = null;
-        bool authRetry = false;
-        
-        do
-        {
-            authRetry = false;
-            
-            // Create a new request for each attempt
-            using var currentRequest = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint);
-            currentRequest.Content = new StringContent(
-                JsonSerializer.Serialize(message, McpJsonUtilities.JsonContext.Default.JsonRpcMessage),
-                Encoding.UTF8,
-                "application/json"
-            );
-            
-            // Add authorization headers if needed - the handler will only add headers if auth is required
-            await _authorizationHandler.AuthenticateRequestAsync(currentRequest).ConfigureAwait(false);
-            
-            // Copy additional headers
-            CopyAdditionalHeaders(currentRequest.Headers);
-            
-            // Dispose previous response before making a new request
-            response?.Dispose();
-            
-            response = await _httpClient.SendAsync(currentRequest, cancellationToken).ConfigureAwait(false);
-            
-            // Handle 401 Unauthorized response - this will only execute if the server requires auth
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                // Try to handle the unauthorized response
-                authRetry = await _authorizationHandler.HandleUnauthorizedResponseAsync(
-                    response, _messageEndpoint).ConfigureAwait(false);
-            }
-        } while (authRetry);
 
         using var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, _messageEndpoint)
         {
@@ -139,25 +94,26 @@ internal sealed partial class SseClientSessionTransport : TransportBase
         StreamableHttpClientSessionTransport.CopyAdditionalHeaders(httpRequestMessage.Headers, _options.AdditionalHeaders);
         var response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
 
-            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
 
-            // Check if the message was an initialize request
-            if (message is JsonRpcRequest request && request.Method == RequestMethods.Initialize)
-            {
-                // If the response is not a JSON-RPC response, it is an SSE message
-                if (string.IsNullOrEmpty(responseContent) || responseContent.Equals("accepted", StringComparison.OrdinalIgnoreCase))
-                {
-                    LogAcceptedPost(Name, messageId);
-                    // The response will arrive as an SSE message
-                }
-                else
-                {
-                    JsonRpcResponse initializeResponse = JsonSerializer.Deserialize(responseContent, McpJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
-                        throw new InvalidOperationException("Failed to initialize client");
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (string.IsNullOrEmpty(responseContent) || responseContent.Equals("accepted", StringComparison.OrdinalIgnoreCase))
         {
-            response.Dispose();
+            LogAcceptedPost(Name, messageId);
+        }
+        else
+        {
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                LogRejectedPostSensitive(Name, messageId, responseContent);
+            }
+            else
+            {
+                LogRejectedPost(Name, messageId);
+            }
+
+            throw new InvalidOperationException("Failed to send message");
         }
     }
 

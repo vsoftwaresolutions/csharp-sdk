@@ -66,26 +66,23 @@ public static class McpEndpointRouteBuilderExtensions
         streamableHttpGroup.MapDelete("", streamableHttpHandler.HandleDeleteRequestAsync);
 
         // Map legacy HTTP with SSE endpoints.
-        var sseHandler = endpoints.ServiceProvider.GetRequiredService<SseHandler>();
-        var sseGroup = mcpGroup.MapGroup("")
+        var sseHandler = endpoints.ServiceProvider.GetRequiredService<SseHandler>(); var sseGroup = mcpGroup.MapGroup("")
             .WithDisplayName(b => $"MCP HTTP with SSE | {b.DisplayName}");
 
-        // Apply authorization filter to SSE endpoints if authorization is configured
-        if (authProvider != null)
-        {
-            // Create the filter factory
-            var filterFactory = endpoints.ServiceProvider.GetRequiredService<McpAuthorizationFilterFactory>();
-            
-            // Apply filter to SSE and message endpoints
-            sseGroup.AddEndpointFilterFactory(filterFactory.Create);
-        }
-
-        sseGroup.MapGet("/sse", sseHandler.HandleSseRequestAsync)
+        // Configure SSE endpoints
+        var sseEndpoint = sseGroup.MapGet("/sse", sseHandler.HandleSseRequestAsync)
             .WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status200OK, contentTypes: ["text/event-stream"]));
-        sseGroup.MapPost("/message", sseHandler.HandleMessageRequestAsync)
+
+        var messageEndpoint = sseGroup.MapPost("/message", sseHandler.HandleMessageRequestAsync)
             .WithMetadata(new AcceptsMetadata(["application/json"]))
             .WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status202Accepted));
 
+        // Apply authorization filter directly to SSE endpoints if authorization is configured
+        if (authProvider != null)
+        {
+            // Apply authorization to both endpoints using the extension method
+            new[] { sseEndpoint, messageEndpoint }.AddMcpAuthorization(authProvider, endpoints.ServiceProvider);
+        }
         return mcpGroup;
     }
 }
