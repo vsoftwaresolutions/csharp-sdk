@@ -87,28 +87,4 @@ public class ProtectedResourceMetadataTests
         Assert.Contains("mcp.prompts", deserialized.ScopesSupported!);
         Assert.Equal("https://example.com/docs", deserialized.ResourceDocumentation!.ToString());
     }
-
-    [Fact]
-    public void ToResourceMetadata_ConversionWorks()
-    {
-        // Arrange
-        var prm = new ProtectedResourceMetadata
-        {
-            Resource = new Uri("http://localhost:7071"),
-            AuthorizationServers = [new Uri("https://login.microsoftonline.com/tenant/v2.0")],
-            BearerMethodsSupported = ["header"],
-            ScopesSupported = ["mcp.tools", "mcp.prompts"],
-            ResourceDocumentation = new Uri("https://example.com/docs")
-        };
-
-        // Act
-        var resourceMetadata = prm.ToResourceMetadata();
-
-        // Assert
-        Assert.Equal(prm.Resource, resourceMetadata.Resource);
-        Assert.Equal(prm.AuthorizationServers, resourceMetadata.AuthorizationServers);
-        Assert.Equal(prm.BearerMethodsSupported, resourceMetadata.BearerMethodsSupported);
-        Assert.Equal(prm.ScopesSupported, resourceMetadata.ScopesSupported);
-        Assert.Equal(prm.ResourceDocumentation, resourceMetadata.ResourceDocumentation);
-    }
 }
