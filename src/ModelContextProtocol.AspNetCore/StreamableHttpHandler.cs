@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using ModelContextProtocol.Protocol.Messages;
 using ModelContextProtocol.Protocol.Transport;
 using ModelContextProtocol.Server;
@@ -22,19 +23,20 @@ internal sealed class StreamableHttpHandler(
     ILoggerFactory loggerFactory,
     IServiceProvider applicationServices)
 {
-    private static JsonTypeInfo<JsonRpcError> s_errorTypeInfo = GetRequiredJsonTypeInfo<JsonRpcError>();
+    private static readonly JsonTypeInfo<JsonRpcError> s_errorTypeInfo = GetRequiredJsonTypeInfo<JsonRpcError>();
+    private static readonly MediaTypeHeaderValue s_applicationJsonMediaType = new("application/json");
+    private static readonly MediaTypeHeaderValue s_textEventStreamMediaType = new("text/event-stream");
 
     public ConcurrentDictionary<string, HttpMcpSession<StreamableHttpServerTransport>> Sessions { get; } = new(StringComparer.Ordinal);
 
     public async Task HandlePostRequestAsync(HttpContext context)
     {
         // The Streamable HTTP spec mandates the client MUST accept both application/json and text/event-stream.
-        // ASP.NET Core Minimal APIs mostly ry to stay out of the business of response content negotiation, so
-        // we have to do this manually. The spec doesn't mandate that servers MUST reject these requests, but it's
-        // probably good to at least start out trying to be strict.
-        var acceptHeader = context.Request.Headers.Accept.ToString();
-        if (!acceptHeader.Contains("application/json", StringComparison.Ordinal) ||
-            !acceptHeader.Contains("text/event-stream", StringComparison.Ordinal))
+        // ASP.NET Core Minimal APIs mostly try to stay out of the business of response content negotiation,
+        // so we have to do this manually. The spec doesn't mandate that servers MUST reject these requests,
+        // but it's probably good to at least start out trying to be strict.
+        var acceptHeaders = context.Request.GetTypedHeaders().Accept;
+        if (!acceptHeaders.Contains(s_applicationJsonMediaType) || !acceptHeaders.Contains(s_textEventStreamMediaType))
         {
             await WriteJsonRpcErrorAsync(context,
                 "Not Acceptable: Client must accept both application/json and text/event-stream",
@@ -49,9 +51,8 @@ internal sealed class StreamableHttpHandler(
         }
 
         using var _ = session.AcquireReference();
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, session.SessionClosed);
         InitializeSseResponse(context);
-        var wroteResponse = await session.Transport.HandlePostRequest(new HttpDuplexPipe(context), cts.Token);
+        var wroteResponse = await session.Transport.HandlePostRequest(new HttpDuplexPipe(context), context.RequestAborted);
         if (!wroteResponse)
         {
             // We wound up writing nothing, so there should be no Content-Type response header.
@@ -62,8 +63,8 @@ internal sealed class StreamableHttpHandler(
 
     public async Task HandleGetRequestAsync(HttpContext context)
     {
-        var acceptHeader = context.Request.Headers.Accept.ToString();
-        if (!acceptHeader.Contains("application/json", StringComparison.Ordinal))
+        var acceptHeaders = context.Request.GetTypedHeaders().Accept;
+        if (!acceptHeaders.Contains(s_textEventStreamMediaType))
         {
             await WriteJsonRpcErrorAsync(context,
                 "Not Acceptable: Client must accept text/event-stream",
@@ -105,12 +106,6 @@ internal sealed class StreamableHttpHandler(
         }
     }
 
-    private void InitializeSessionResponse(HttpContext context, HttpMcpSession<StreamableHttpServerTransport> session)
-    {
-        context.Response.Headers["mcp-session-id"] = session.Id;
-        context.Features.Set(session.Server);
-    }
-
     private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>?> GetSessionAsync(HttpContext context, string sessionId)
     {
         if (Sessions.TryGetValue(sessionId, out var existingSession))
@@ -123,7 +118,8 @@ internal sealed class StreamableHttpHandler(
                 return null;
             }
 
-            InitializeSessionResponse(context, existingSession);
+            context.Response.Headers["mcp-session-id"] = existingSession.Id;
+            context.Features.Set(existingSession.Server);
             return existingSession;
         }
 
@@ -138,11 +134,10 @@ internal sealed class StreamableHttpHandler(
     private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>?> GetOrCreateSessionAsync(HttpContext context)
     {
         var sessionId = context.Request.Headers["mcp-session-id"].ToString();
-        HttpMcpSession<StreamableHttpServerTransport>? session;
 
         if (string.IsNullOrEmpty(sessionId))
         {
-            session = await CreateSessionAsync(context);
+            var session = await CreateSessionAsync(context);
 
             if (!Sessions.TryAdd(session.Id, session))
             {
@@ -159,6 +154,9 @@ internal sealed class StreamableHttpHandler(
 
     private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>> CreateSessionAsync(HttpContext context)
     {
+        var sessionId = MakeNewSessionId();
+        context.Response.Headers["mcp-session-id"] = sessionId;
+
         var mcpServerOptions = mcpServerOptionsSnapshot.Value;
         if (httpMcpServerOptions.Value.ConfigureSessionOptions is { } configureSessionOptions)
         {
@@ -169,8 +167,9 @@ internal sealed class StreamableHttpHandler(
         var transport = new StreamableHttpServerTransport();
         // Use application instead of request services, because the session will likely outlive the first initialization request.
         var server = McpServerFactory.Create(transport, mcpServerOptions, loggerFactory, applicationServices);
+        context.Features.Set(server);
 
-        var session = new HttpMcpSession<StreamableHttpServerTransport>(MakeNewSessionId(), transport, context.User, httpMcpServerOptions.Value.TimeProvider)
+        var session = new HttpMcpSession<StreamableHttpServerTransport>(sessionId, transport, context.User, httpMcpServerOptions.Value.TimeProvider)
         {
             Server = server,
         };
@@ -178,7 +177,6 @@ internal sealed class StreamableHttpHandler(
         var runSessionAsync = httpMcpServerOptions.Value.RunSessionHandler ?? RunSessionAsync;
         session.ServerRunTask = runSessionAsync(context, server, session.SessionClosed);
 
-        InitializeSessionResponse(context, session);
         return session;
     }
 

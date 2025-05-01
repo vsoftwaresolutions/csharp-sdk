@@ -37,7 +37,7 @@ public abstract partial class TransportBase : ITransport
         _messageChannel = Channel.CreateUnbounded<JsonRpcMessage>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true,
+            SingleWriter = false,
         });
     }
 
@@ -74,6 +74,12 @@ public abstract partial class TransportBase : ITransport
         if (!IsConnected)
         {
             throw new InvalidOperationException("Transport is not connected");
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var messageId = (message as JsonRpcMessageWithId)?.Id.ToString() ?? "(no id)";
+            LogTransportReceivedMessage(Name, messageId);
         }
 
         await _messageChannel.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
@@ -114,9 +120,6 @@ public abstract partial class TransportBase : ITransport
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{EndpointName} transport received message with ID '{MessageId}'.")]
     private protected partial void LogTransportReceivedMessage(string endpointName, string messageId);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "{EndpointName} transport sent message with ID '{MessageId}'.")]
-    private protected partial void LogTransportMessageWritten(string endpointName, string messageId);
 
     [LoggerMessage(Level = LogLevel.Trace, Message = "{EndpointName} transport received unexpected message. Message: '{Message}'.")]
     private protected partial void LogTransportMessageParseUnexpectedTypeSensitive(string endpointName, string message);
