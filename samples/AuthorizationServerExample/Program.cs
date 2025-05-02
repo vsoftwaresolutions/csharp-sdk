@@ -23,11 +23,11 @@ public class Program
         // This is the information that will be provided to clients when they need to authenticate
         var prm = new ProtectedResourceMetadata
         {
-            Resource = "http://localhost:7071", // Changed from HTTPS to HTTP for local development
-            AuthorizationServers = ["https://login.microsoftonline.com/a2213e1c-e51e-4304-9a0d-effe57f31655/v2.0"], // Let's use a dummy Entra ID tenant here
+            Resource = new Uri("http://localhost:7071"), // Changed from HTTPS to HTTP for local development
+            AuthorizationServers = [ new Uri("https://login.microsoftonline.com/a2213e1c-e51e-4304-9a0d-effe57f31655/v2.0")], // Let's use a dummy Entra ID tenant here
             BearerMethodsSupported = ["header"], // We support the Authorization header
             ScopesSupported = ["mcp.tools", "mcp.prompts", "mcp.resources"], // Scopes supported by this resource
-            ResourceDocumentation = "https://example.com/docs/mcp-server-auth" // Optional documentation URL
+            ResourceDocumentation = new Uri("https://example.com/docs/mcp-server-auth") // Optional documentation URL
         };
 
         // 2. Define a token validator function

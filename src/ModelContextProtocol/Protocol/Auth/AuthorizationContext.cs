@@ -62,36 +62,32 @@ internal class AuthorizationContext
         // Since HasValidToken checks that TokenResponse isn't null, we should never have null here,
         // but we'll add an explicit null check to satisfy the compiler
         return TokenResponse?.AccessToken;
-    }
-
+    }    
+    
     /// <summary>
     /// Gets a value indicating whether a refresh token is available for refreshing the access token.
     /// </summary>
     public bool CanRefreshToken => TokenResponse?.RefreshToken != null && 
                                   ClientRegistration != null &&
                                   AuthorizationServerMetadata != null;
-
+    
     /// <summary>
-    /// Validates the URL of a resource against the resource URL from the metadata.
+    /// Validates a URI resource against the resource URI from the metadata.
     /// </summary>
-    /// <param name="resourceUrl">The URL to validate.</param>
-    /// <returns>True if the URLs match, otherwise false.</returns>
-    public bool ValidateResourceUrl(string resourceUrl)
+    /// <param name="resourceUri">The URI to validate.</param>
+    /// <returns>True if the URIs match based on scheme and server components, otherwise false.</returns>
+    public bool ValidateResourceUrl(Uri resourceUri)
     {
-        if (ResourceMetadata == null || string.IsNullOrEmpty(ResourceMetadata.Resource))
+        if (ResourceMetadata == null || ResourceMetadata.Resource == null || resourceUri == null)
         {
             return false;
         }
 
-        // Compare the host part (FQDN) rather than the full URL
-        if (Uri.TryCreate(resourceUrl, UriKind.Absolute, out Uri? resourceUri) && 
-            Uri.TryCreate(ResourceMetadata.Resource, UriKind.Absolute, out Uri? metadataUri))
-        {
-            // Compare only the host (domain name)
-            return string.Equals(resourceUri.Host, metadataUri.Host, StringComparison.OrdinalIgnoreCase);
-        }
-
-        // If we can't parse both URLs, fall back to exact string comparison
-        return string.Equals(resourceUrl, ResourceMetadata.Resource, StringComparison.OrdinalIgnoreCase);
+        // Use Uri.Compare to properly compare the scheme and server components
+        // UriComponents.SchemeAndServer includes the scheme, host, port, and user info
+        // This handles edge cases like default ports, IPv6 addresses, etc.
+        return Uri.Compare(resourceUri, ResourceMetadata.Resource, 
+            UriComponents.SchemeAndServer, UriFormat.UriEscaped, 
+            StringComparison.OrdinalIgnoreCase) == 0;
     }
 }

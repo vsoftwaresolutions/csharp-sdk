@@ -64,7 +64,7 @@ public class ProtectedResourceMetadataTests
     public void ResourceMetadata_JsonSerialization_Works()
     {
         // Arrange
-        var metadata = new ResourceMetadata
+        var metadata = new ProtectedResourceMetadata
         {
             Resource = new Uri("http://localhost:7071"),
             AuthorizationServers = [new Uri("https://login.microsoftonline.com/tenant/v2.0")],
@@ -75,7 +75,7 @@ public class ProtectedResourceMetadataTests
 
         // Act
         var json = JsonSerializer.Serialize(metadata);
-        var deserialized = JsonSerializer.Deserialize<ResourceMetadata>(json);
+        var deserialized = JsonSerializer.Deserialize<ProtectedResourceMetadata>(json);
 
         // Assert
         Assert.NotNull(deserialized);

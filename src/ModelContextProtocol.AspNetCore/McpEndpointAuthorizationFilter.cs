@@ -21,9 +21,7 @@ internal class McpEndpointAuthorizationFilter : IEndpointFilter
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _authProvider = authProvider ?? throw new ArgumentNullException(nameof(authProvider));
-    }
-
-    /// <inheritdoc/>
+    }    /// <inheritdoc/>
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var httpContext = context.HttpContext;
@@ -58,26 +56,15 @@ internal class McpEndpointAuthorizationFilter : IEndpointFilter
 
         // Token is valid, proceed to the next filter
         return await next(context);
-    }
-
-    /// <summary>
+    }/// <summary>
     /// Builds the URL for the protected resource metadata endpoint.
     /// </summary>
     /// <param name="context">The HTTP context.</param>
     /// <param name="resourceUri">The resource URI from the protected resource metadata.</param>
     /// <returns>The full URL to the protected resource metadata endpoint.</returns>
-    private static string GetPrmUrl(HttpContext context, string resourceUri)
+    private static string GetPrmUrl(HttpContext context, Uri resourceUri)
     {
-        // Use the actual resource URI from PRM if it's an absolute URL, otherwise build the URL
-        if (Uri.TryCreate(resourceUri, UriKind.Absolute, out _))
-        {
-            return $"{resourceUri.TrimEnd('/')}/.well-known/oauth-protected-resource";
-        }
-
-        // Build the URL from the current request
-        var request = context.Request;
-        var scheme = request.Scheme;
-        var host = request.Host.Value;
-        return $"{scheme}://{host}/.well-known/oauth-protected-resource";
+        // Create a new URI with the well-known path appended
+        return new Uri(resourceUri, ".well-known/oauth-protected-resource").ToString();
     }
 }

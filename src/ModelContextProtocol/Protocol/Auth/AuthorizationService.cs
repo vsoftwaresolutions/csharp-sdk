@@ -78,26 +78,21 @@ public class AuthorizationService
             // Failed to get resource metadata
             return null;
         }
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Discovers authorization server metadata from a well-known endpoint.
     /// </summary>
-    /// <param name="authorizationServerUrl">The base URL of the authorization server.</param>
+    /// <param name="authorizationServerUrl">The base URL of the authorization server (as a string or Uri).</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the authorization server metadata.</returns>
     /// <exception cref="InvalidOperationException">Thrown when both well-known endpoints return errors.</exception>
-    public static async Task<AuthorizationServerMetadata> DiscoverAuthorizationServerMetadataAsync(string authorizationServerUrl)
+    public static async Task<AuthorizationServerMetadata> DiscoverAuthorizationServerMetadataAsync(Uri authorizationServerUrl)
     {
-        Throw.IfNullOrWhiteSpace(authorizationServerUrl);
+        Throw.IfNull(authorizationServerUrl);
 
-        // Remove trailing slash if present
-        if (authorizationServerUrl.EndsWith("/"))
-        {
-            authorizationServerUrl = authorizationServerUrl[..^1];
-        }
-
+        // Create a base URI without any path, query, or fragment
+        var baseUri = new Uri($"{authorizationServerUrl.Scheme}://{authorizationServerUrl.Authority}");
+        
         // Try OpenID Connect discovery endpoint
-        var openIdConfigUrl = $"{authorizationServerUrl}/.well-known/openid-configuration";
+        var openIdConfigUrl = new Uri(baseUri, ".well-known/openid-configuration");
         try
         {
             using var openIdResponse = await s_httpClient.GetAsync(openIdConfigUrl);
@@ -124,8 +119,7 @@ public class AuthorizationService
         }
 
         // Try OAuth 2.0 Authorization Server Metadata endpoint
-        var oauthConfigUrl = $"{authorizationServerUrl}/.well-known/oauth-authorization-server";
-        try
+        var oauthConfigUrl = new Uri(baseUri, ".well-known/oauth-authorization-server");        try
         {
             using var oauthResponse = await s_httpClient.GetAsync(oauthConfigUrl);
             if (oauthResponse.IsSuccessStatusCode)
@@ -148,11 +142,29 @@ public class AuthorizationService
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
             // Failed to get OAuth configuration
-        }
-
-        throw new InvalidOperationException(
-            "Failed to discover authorization server metadata. " +
+        }        throw new InvalidOperationException(
+            $"Failed to discover authorization server metadata for {authorizationServerUrl}. " +
             "Neither OpenID Connect nor OAuth 2.0 well-known endpoints are available.");
+    }
+
+    /// <summary>
+    /// Discovers authorization server metadata from a well-known endpoint.
+    /// </summary>
+    /// <param name="authorizationServerUrl">The base URL of the authorization server as a string.</param>
+    /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the authorization server metadata.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when both well-known endpoints return errors.</exception>
+    /// <exception cref="ArgumentException">Thrown when the URL is invalid.</exception>
+    public static Task<AuthorizationServerMetadata> DiscoverAuthorizationServerMetadataAsync(string authorizationServerUrl)
+    {
+        Throw.IfNullOrWhiteSpace(authorizationServerUrl);
+        
+        // Create a Uri from the string and call the Uri-based method
+        if (Uri.TryCreate(authorizationServerUrl, UriKind.Absolute, out Uri? uri))
+        {
+            return DiscoverAuthorizationServerMetadataAsync(uri);
+        }
+        
+        throw new ArgumentException("Invalid URI format", nameof(authorizationServerUrl));
     }
 
     /// <summary>

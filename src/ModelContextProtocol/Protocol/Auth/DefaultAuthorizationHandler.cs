@@ -94,36 +94,31 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
                 ResourceUri = serverUri.ToString()
             };
             throw exception;
-        }
-
-        // Store the resource metadata in the context before validating the resource URL
+        }        // Store the resource metadata in the context before validating the resource URL
         authContext.Value.ResourceMetadata = resourceMetadata;
 
         // Validate that the resource matches the server FQDN
-        if (!authContext.Value.ValidateResourceUrl(serverUri.ToString()))
+        if (!authContext.Value.ValidateResourceUrl(serverUri))
         {
             _logger.LogWarning("Resource URL mismatch: expected {Expected}, got {Actual}", 
                 serverUri, resourceMetadata.Resource);
             
             var exception = new AuthorizationException($"Resource URL mismatch: expected {serverUri}, got {resourceMetadata.Resource}");
-            exception.ResourceUri = resourceMetadata.Resource;
+            exception.ResourceUri = resourceMetadata.Resource.ToString();
             throw exception;
         }
 
         // Get the first authorization server from the metadata
         if (resourceMetadata.AuthorizationServers == null || resourceMetadata.AuthorizationServers.Length == 0)
-        {
-            _logger.LogWarning("No authorization servers found in resource metadata");
+        {            _logger.LogWarning("No authorization servers found in resource metadata");
             
             var exception = new AuthorizationException("No authorization servers available");
-            exception.ResourceUri = resourceMetadata.Resource;
+            exception.ResourceUri = resourceMetadata.Resource.ToString();
             throw exception;
         }
 
         var authServerUrl = resourceMetadata.AuthorizationServers[0];
-        _logger.LogDebug("Using authorization server: {AuthServerUrl}", authServerUrl);
-
-        try
+        _logger.LogDebug("Using authorization server: {AuthServerUrl}", authServerUrl);        try
         {
             // Discover authorization server metadata
             var authServerMetadata = await AuthorizationService.DiscoverAuthorizationServerMetadataAsync(authServerUrl);
@@ -164,12 +159,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             else
             {
                 _logger.LogWarning("Authorization server does not support dynamic client registration and no client ID was provided");
-                
-                var exception = new AuthorizationException(
+                  var exception = new AuthorizationException(
                     "Authorization server does not support dynamic client registration and no client ID was provided. " +
                     "Use McpAuthorizationOptions.ClientId to provide a pre-registered client ID.");
-                exception.ResourceUri = resourceMetadata.Resource;
-                exception.AuthorizationServerUri = authServerUrl;
+                exception.ResourceUri = resourceMetadata.Resource.ToString();
+                exception.AuthorizationServerUri = authServerUrl.ToString();
                 throw exception;
             }
 
@@ -177,12 +171,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
             if (_authorizeCallback == null)
             {
                 _logger.LogWarning("No authorization callback provided, can't proceed with OAuth flow");
-                
-                var exception = new AuthorizationException(
+                  var exception = new AuthorizationException(
                     "Authentication is required but no authorization callback was provided. " +
                     "Use McpAuthorizationOptions.AuthorizeCallback to provide a callback function.");
-                exception.ResourceUri = resourceMetadata.Resource;
-                exception.AuthorizationServerUri = authServerUrl;
+                exception.ResourceUri = resourceMetadata.Resource.ToString();
+                exception.AuthorizationServerUri = authServerUrl.ToString();
                 throw exception;
             }
 
@@ -229,12 +222,11 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
         catch (Exception ex) when (ex is not AuthorizationException)
         {
             _logger.LogError(ex, "Failed to complete authorization flow");
-            
-            var authException = new AuthorizationException(
+              var authException = new AuthorizationException(
                 $"Failed to complete authorization flow: {ex.Message}", ex, McpErrorCode.InvalidRequest);
             
-            authException.ResourceUri = resourceMetadata.Resource;
-            authException.AuthorizationServerUri = authServerUrl;
+            authException.ResourceUri = resourceMetadata.Resource.ToString();
+            authException.AuthorizationServerUri = authServerUrl.ToString();
             
             throw authException;
         }
