@@ -1,8 +1,5 @@
 using ModelContextProtocol.Protocol.Auth;
-using ModelContextProtocol.Utils.Json;
-using System;
 using System.Text.Json;
-using Xunit;
 
 namespace ModelContextProtocol.Tests.Protocol.Auth;
 
