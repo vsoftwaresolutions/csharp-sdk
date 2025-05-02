@@ -33,12 +33,26 @@ internal class ProtectedResourceMetadataHandler
     /// <param name="context">The HTTP context.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task HandleAsync(HttpContext context)
-    {
-        _logger.LogDebug("Serving Protected Resource Metadata document");
+    {        _logger.LogDebug("Serving Protected Resource Metadata document");
         context.Response.ContentType = "application/json";
         await JsonSerializer.SerializeAsync(
             context.Response.Body, 
             _authProvider.GetProtectedResourceMetadata(),
             McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(ProtectedResourceMetadata)));
+    }    /// <summary>
+    /// Builds the URL for the protected resource metadata endpoint.
+    /// </summary>
+    /// <param name="resourceUri">The resource URI from the protected resource metadata.</param>
+    /// <returns>The full URL to the protected resource metadata endpoint.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when resourceUri is null.</exception>
+    public static string GetProtectedResourceMetadataUrl(Uri resourceUri)
+    {
+        if (resourceUri == null)
+        {
+            throw new ArgumentNullException(nameof(resourceUri), "Resource URI must be provided to build the protected resource metadata URL.");
+        }
+        
+        // Create a new URI with the well-known path appended
+        return new Uri(resourceUri, ".well-known/oauth-protected-resource").ToString();
     }
 }

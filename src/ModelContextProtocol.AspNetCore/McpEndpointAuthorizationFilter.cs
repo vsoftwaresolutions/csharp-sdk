@@ -28,10 +28,9 @@ internal class McpEndpointAuthorizationFilter : IEndpointFilter
 
         // Check if the Authorization header is present
         if (!httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader) || string.IsNullOrEmpty(authHeader))
-        {
-            // No Authorization header present, return 401 Unauthorized
+        {            // No Authorization header present, return 401 Unauthorized
             var prm = _authProvider.GetProtectedResourceMetadata();
-            var prmUrl = GetPrmUrl(httpContext, prm.Resource);
+            var prmUrl = ProtectedResourceMetadataHandler.GetProtectedResourceMetadataUrl(prm.Resource);
             
             _logger.LogDebug("Authorization required, returning 401 Unauthorized with WWW-Authenticate header");
             httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -43,28 +42,15 @@ internal class McpEndpointAuthorizationFilter : IEndpointFilter
         string authHeaderValue = authHeader.ToString();
         bool isValid = await _authProvider.ValidateTokenAsync(authHeaderValue);
         if (!isValid)
-        {
-            // Invalid token, return 401 Unauthorized
+        {            // Invalid token, return 401 Unauthorized
             var prm = _authProvider.GetProtectedResourceMetadata();
-            var prmUrl = GetPrmUrl(httpContext, prm.Resource);
+            var prmUrl = ProtectedResourceMetadataHandler.GetProtectedResourceMetadataUrl(prm.Resource);
             
             _logger.LogDebug("Invalid authorization token, returning 401 Unauthorized");
             httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
             httpContext.Response.Headers.Append("WWW-Authenticate", $"Bearer resource_metadata=\"{prmUrl}\"");
             return Results.Empty;
-        }
-
-        // Token is valid, proceed to the next filter
+        }        // Token is valid, proceed to the next filter
         return await next(context);
-    }/// <summary>
-    /// Builds the URL for the protected resource metadata endpoint.
-    /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <param name="resourceUri">The resource URI from the protected resource metadata.</param>
-    /// <returns>The full URL to the protected resource metadata endpoint.</returns>
-    private static string GetPrmUrl(HttpContext context, Uri resourceUri)
-    {
-        // Create a new URI with the well-known path appended
-        return new Uri(resourceUri, ".well-known/oauth-protected-resource").ToString();
     }
 }

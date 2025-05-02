@@ -58,25 +58,8 @@ internal class AuthorizationMiddleware
                 authProvider.GetProtectedResourceMetadata(),
                 McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(ProtectedResourceMetadata)));
             return;
-        }
-
-        // Proceed to the next middleware - authorization for SSE and message endpoints
+        }        // Proceed to the next middleware - authorization for SSE and message endpoints
         // is now handled by endpoint filters
         await _next(context);
-    }
-
-    private static string GetPrmUrl(HttpContext context, string resourceUri)
-    {
-        // Use the actual resource URI from PRM if it's an absolute URL, otherwise build the URL
-        if (Uri.TryCreate(resourceUri, UriKind.Absolute, out _))
-        {
-            return $"{resourceUri.TrimEnd('/')}/.well-known/oauth-protected-resource";
-        }
-
-        // Build the URL from the current request
-        var request = context.Request;
-        var scheme = request.Scheme;
-        var host = request.Host.Value;
-        return $"{scheme}://{host}/.well-known/oauth-protected-resource";
     }
 }
