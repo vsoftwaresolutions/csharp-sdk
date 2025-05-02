@@ -40,7 +40,7 @@ public class Program
         }
 
         // 3. Create an authorization provider with the PRM and token validator
-        var authProvider = new SimpleServerAuthorizationProvider(prm, ValidateToken);
+        var authProvider = new BasicServerAuthorizationProvider(prm, ValidateToken);
 
         // 4. Configure the MCP server with authorization
         builder.Services.AddMcpServer(options =>

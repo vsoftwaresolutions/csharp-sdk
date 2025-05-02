@@ -3,7 +3,7 @@ using ModelContextProtocol.Protocol.Auth;
 namespace ModelContextProtocol.Server.Auth;
 
 /// <summary>
-/// A simple implementation of <see cref="IServerAuthorizationProvider"/> that validates bearer tokens.
+/// A basic implementation of <see cref="IServerAuthorizationProvider"/>.
 /// </summary>
 /// <remarks>
 /// This implementation is intended as a starting point for server developers. In production environments,
@@ -11,12 +11,12 @@ namespace ModelContextProtocol.Server.Auth;
 /// authentication system (e.g., OAuth 2.0 server, identity provider, etc.)
 /// </remarks>
 /// <remarks>
-/// Initializes a new instance of the <see cref="SimpleServerAuthorizationProvider"/> class
+/// Initializes a new instance of the <see cref="BasicServerAuthorizationProvider"/> class
 /// with the specified resource metadata and token validator.
 /// </remarks>
 /// <param name="resourceMetadata">The protected resource metadata.</param>
 /// <param name="tokenValidator">A function that validates access tokens. If not provided, a function that always returns true will be used.</param>
-public class SimpleServerAuthorizationProvider(
+public class BasicServerAuthorizationProvider(
     ProtectedResourceMetadata resourceMetadata,
     Func<string, Task<bool>>? tokenValidator = null) : IServerAuthorizationProvider
 {
