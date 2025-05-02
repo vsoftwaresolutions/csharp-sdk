@@ -75,13 +75,14 @@ public static class McpEndpointRouteBuilderExtensions
 
         var messageEndpoint = sseGroup.MapPost("/message", sseHandler.HandleMessageRequestAsync)
             .WithMetadata(new AcceptsMetadata(["application/json"]))
-            .WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status202Accepted));
-
-        // Apply authorization filter directly to SSE endpoints if authorization is configured
+            .WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status202Accepted));        // Apply authorization filter directly to the endpoints if authorization is configured
         if (authProvider != null)
         {
-            // Apply authorization to both endpoints using the extension method
+            // Apply authorization to both SSE endpoints using the extension method
             new[] { sseEndpoint, messageEndpoint }.AddMcpAuthorization(authProvider, endpoints.ServiceProvider);
+            
+            // Apply authorization to the Streamable HTTP endpoints using the extension method
+            streamableHttpGroup.AddMcpAuthorization(authProvider, endpoints.ServiceProvider);
         }
         return mcpGroup;
     }

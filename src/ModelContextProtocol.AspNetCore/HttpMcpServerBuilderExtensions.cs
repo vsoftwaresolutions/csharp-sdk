@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection.Extensions;
+﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
 
@@ -27,6 +28,9 @@ public static class HttpMcpServerBuilderExtensions
         builder.Services.TryAddSingleton<SseHandler>();
         builder.Services.AddHostedService<IdleTrackingBackgroundService>();
 
+        // Add our auto-registration for the authorization middleware
+        builder.Services.AddTransient<IStartupFilter, McpAuthorizationStartupFilter>();
+        
         if (configureOptions is not null)
         {
             builder.Services.Configure(configureOptions);

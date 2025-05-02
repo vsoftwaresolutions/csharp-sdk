@@ -1,5 +1,5 @@
 using ModelContextProtocol;
-using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Configuration;
 using ModelContextProtocol.Protocol.Auth;
 using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server.Auth;
@@ -40,9 +40,12 @@ public class Program
         }
 
         // 3. Create an authorization provider with the PRM and token validator
-        var authProvider = new BasicServerAuthorizationProvider(prm, ValidateToken);
-
-        // 4. Configure the MCP server with authorization
+        var authProvider = new BasicServerAuthorizationProvider(prm, ValidateToken);        // 4. Configure the MCP server with authorization
+        // WithAuthorization will automatically configure:
+        // - Authorization provider registration
+        // - Protected resource metadata endpoint (/.well-known/oauth-protected-resource)
+        // - Token validation middleware
+        // - Authorization for all MCP endpoints
         builder.Services.AddMcpServer(options =>
             {
                 options.ServerInstructions = "This is an MCP server with OAuth authorization enabled.";
@@ -106,14 +109,8 @@ public class Program
 
         var app = builder.Build();
         
-        // 5. Enable authorization middleware (this must be before MapMcp)
-        // This middleware does several things:
-        // - Serves the PRM document at /.well-known/oauth-protected-resource
-        // - Checks Authorization header on requests
-        // - Returns 401 + WWW-Authenticate when authorization is missing or invalid
-        app.UseMcpAuthorization();
-        
-        // 6. Map MCP endpoints
+        // 5. Map MCP endpoints
+        // Note: Authorization is now handled automatically by WithAuthorization()
         app.MapMcp();
         
         // Configure the server URL

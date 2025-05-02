@@ -25,9 +25,7 @@ internal class AuthorizationMiddleware
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Processes a request.
     /// </summary>
     /// <param name="context">The HTTP context.</param>
@@ -42,6 +40,7 @@ internal class AuthorizationMiddleware
         // Check if authorization is configured
         if (authProvider == null)
         {
+            _logger.LogDebug("Authorization is not configured, skipping authorization middleware");
             // Authorization is not configured, proceed to the next middleware
             await _next(context);
             return;
@@ -54,7 +53,7 @@ internal class AuthorizationMiddleware
             _logger.LogDebug("Serving Protected Resource Metadata document");
             context.Response.ContentType = "application/json";
             await JsonSerializer.SerializeAsync(
-                context.Response.Body, 
+                context.Response.Body,
                 authProvider.GetProtectedResourceMetadata(),
                 McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(ProtectedResourceMetadata)));
             return;
