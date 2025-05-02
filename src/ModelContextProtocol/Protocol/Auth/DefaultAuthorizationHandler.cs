@@ -140,7 +140,7 @@ internal class DefaultAuthorizationHandler : IAuthorizationHandler
                 _logger.LogDebug("Using pre-configured client ID: {ClientId}", _clientId);
                 
                 // Create a client registration response to store in the context
-                var clientRegistration = new ClientRegistrationResponse
+                var clientRegistration = new ClientRegistration
                 {
                     ClientId = _clientId!, // Using null-forgiving operator since we've already checked it's not null
                     ClientSecret = _clientSecret,

@@ -18,12 +18,12 @@ internal class AuthorizationContext
     /// <summary>
     /// Gets or sets the client registration response.
     /// </summary>
-    public ClientRegistrationResponse? ClientRegistration { get; set; }
+    public ClientRegistration? ClientRegistration { get; set; }
 
     /// <summary>
     /// Gets or sets the token response.
     /// </summary>
-    public TokenResponse? TokenResponse { get; set; }
+    public Token? TokenResponse { get; set; }
 
     /// <summary>
     /// Gets or sets the code verifier for PKCE.

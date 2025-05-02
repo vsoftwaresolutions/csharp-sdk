@@ -174,7 +174,7 @@ public class AuthorizationService
     /// <param name="clientMetadata">The client metadata for registration.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the client registration response.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the authorization server does not support dynamic client registration.</exception>
-    public static async Task<ClientRegistrationResponse> RegisterClientAsync(
+    public static async Task<ClientRegistration> RegisterClientAsync(
         AuthorizationServerMetadata metadata,
         ClientMetadata clientMetadata)
     {
@@ -198,7 +198,7 @@ public class AuthorizationService
         var contentStream = await response.Content.ReadAsStreamAsync();
         using var reader = new StreamReader(contentStream);
         var json = await reader.ReadToEndAsync();
-        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ClientRegistrationResponse);
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.ClientRegistration);
         
         if (result == null)
         {
@@ -288,7 +288,7 @@ public class AuthorizationService
     /// <param name="code">The authorization code received from the authorization server.</param>
     /// <param name="codeVerifier">The code verifier for PKCE.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the token response.</returns>
-    public static async Task<TokenResponse> ExchangeCodeForTokensAsync(
+    public static async Task<Token> ExchangeCodeForTokensAsync(
         AuthorizationServerMetadata metadata,
         string clientId,
         string? clientSecret,
@@ -330,7 +330,7 @@ public class AuthorizationService
         var contentStream = await response.Content.ReadAsStreamAsync();
         using var reader = new StreamReader(contentStream);
         var json = await reader.ReadToEndAsync();
-        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.TokenResponse);
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.Token);
         
         if (result == null)
         {
@@ -348,7 +348,7 @@ public class AuthorizationService
     /// <param name="clientSecret">The client secret.</param>
     /// <param name="refreshToken">The refresh token.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation. The task result contains the token response.</returns>
-    public static async Task<TokenResponse> RefreshTokenAsync(
+    public static async Task<Token> RefreshTokenAsync(
         AuthorizationServerMetadata metadata,
         string clientId,
         string? clientSecret,
@@ -384,7 +384,7 @@ public class AuthorizationService
         var contentStream = await response.Content.ReadAsStreamAsync();
         using var reader = new StreamReader(contentStream);
         var json = await reader.ReadToEndAsync();
-        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.TokenResponse);
+        var result = JsonSerializer.Deserialize(json, McpJsonUtilities.JsonContext.Default.Token);
         
         if (result == null)
         {
