@@ -36,7 +36,8 @@ public class Program
                 RedirectUris = new[] 
                 { 
                     $"http://{hostname}:{port}{callbackPath}" 
-                },                // Configure the authorize callback with the same hostname, port, and path
+                },                
+                // Configure the authorize callback with the same hostname, port, and path
                 AuthorizeCallback = AuthorizationService.CreateHttpListenerAuthorizeCallback(
                     openBrowser: async (url) =>
                     {
