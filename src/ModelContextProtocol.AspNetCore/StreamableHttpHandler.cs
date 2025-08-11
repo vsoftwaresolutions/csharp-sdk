@@ -29,7 +29,7 @@ internal sealed class StreamableHttpHandler(
     private const string McpSessionIdHeaderName = "Mcp-Session-Id";
     private static readonly JsonTypeInfo<JsonRpcError> s_errorTypeInfo = GetRequiredJsonTypeInfo<JsonRpcError>();
 
-    public ConcurrentDictionary<string, HttpMcpSession<StreamableHttpServerTransport>> Sessions { get; } = new(StringComparer.Ordinal);
+    public ConcurrentDictionary<string, StreamableHttpSession> Sessions { get; } = new(StringComparer.Ordinal);
 
     public HttpServerTransportOptions HttpServerTransportOptions => httpServerTransportOptions.Value;
 
@@ -125,9 +125,9 @@ internal sealed class StreamableHttpHandler(
         }
     }
 
-    private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>?> GetSessionAsync(HttpContext context, string sessionId)
+    private async ValueTask<StreamableHttpSession?> GetSessionAsync(HttpContext context, string sessionId)
     {
-        HttpMcpSession<StreamableHttpServerTransport>? session;
+        StreamableHttpSession? session;
 
         if (HttpServerTransportOptions.Stateless)
         {
@@ -163,7 +163,7 @@ internal sealed class StreamableHttpHandler(
         return session;
     }
 
-    private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>?> GetOrCreateSessionAsync(HttpContext context)
+    private async ValueTask<StreamableHttpSession?> GetOrCreateSessionAsync(HttpContext context)
     {
         var sessionId = context.Request.Headers[McpSessionIdHeaderName].ToString();
 
@@ -177,7 +177,7 @@ internal sealed class StreamableHttpHandler(
         }
     }
 
-    private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>> StartNewSessionAsync(HttpContext context)
+    private async ValueTask<StreamableHttpSession> StartNewSessionAsync(HttpContext context)
     {
         string sessionId;
         StreamableHttpServerTransport transport;
@@ -218,7 +218,7 @@ internal sealed class StreamableHttpHandler(
         return session;
     }
 
-    private async ValueTask<HttpMcpSession<StreamableHttpServerTransport>> CreateSessionAsync(
+    private async ValueTask<StreamableHttpSession> CreateSessionAsync(
         HttpContext context,
         StreamableHttpServerTransport transport,
         string sessionId,
@@ -248,7 +248,7 @@ internal sealed class StreamableHttpHandler(
         context.Features.Set(server);
 
         var userIdClaim = statelessId?.UserIdClaim ?? GetUserIdClaim(context.User);
-        var session = new HttpMcpSession<StreamableHttpServerTransport>(sessionId, transport, userIdClaim, HttpServerTransportOptions.TimeProvider)
+        var session = new StreamableHttpSession(sessionId, transport, userIdClaim, HttpServerTransportOptions.TimeProvider)
         {
             Server = server,
         };

@@ -135,7 +135,7 @@ internal sealed partial class IdleTrackingBackgroundService(
         _ = DisposeSessionAsync(session);
     }
 
-    private async Task DisposeSessionAsync(HttpMcpSession<StreamableHttpServerTransport> session)
+    private async Task DisposeSessionAsync(StreamableHttpSession session)
     {
         try
         {

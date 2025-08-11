@@ -1,23 +1,20 @@
-﻿using ModelContextProtocol.AspNetCore.Stateless;
-using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
+﻿using ModelContextProtocol.Server;
 using System.Security.Claims;
 
 namespace ModelContextProtocol.AspNetCore;
 
-internal sealed class HttpMcpSession<TTransport>(
+internal sealed class StreamableHttpSession(
     string sessionId,
-    TTransport transport,
+    StreamableHttpServerTransport transport,
     UserIdClaim? userId,
     TimeProvider timeProvider) : IAsyncDisposable
-    where TTransport : ITransport
 {
     private int _referenceCount;
     private int _getRequestStarted;
     private CancellationTokenSource _disposeCts = new();
 
     public string Id { get; } = sessionId;
-    public TTransport Transport { get; } = transport;
+    public StreamableHttpServerTransport Transport { get; } = transport;
     public UserIdClaim? UserIdClaim { get; } = userId;
 
     public CancellationToken SessionClosed => _disposeCts.Token;
@@ -72,7 +69,7 @@ internal sealed class HttpMcpSession<TTransport>(
     public bool HasSameUserId(ClaimsPrincipal user)
         => UserIdClaim == StreamableHttpHandler.GetUserIdClaim(user);
 
-    private sealed class UnreferenceDisposable(HttpMcpSession<TTransport> session) : IDisposable
+    private sealed class UnreferenceDisposable(StreamableHttpSession session) : IDisposable
     {
         public void Dispose()
         {
