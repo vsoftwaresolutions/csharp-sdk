@@ -68,7 +68,7 @@ public class HttpServerTransportOptions
     /// keeping a GET request open will not count towards this limit.
     /// Defaults to 100,000 sessions.
     /// </remarks>
-    public int MaxIdleSessionCount { get; set; } = 100_000;
+    public int MaxIdleSessionCount { get; set; } = 10_000;
 
     /// <summary>
     /// Used for testing the <see cref="IdleTimeout"/>.
