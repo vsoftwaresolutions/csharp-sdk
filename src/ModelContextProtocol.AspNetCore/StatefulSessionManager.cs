@@ -1,8 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ModelContextProtocol.AspNetCore;
 
@@ -18,8 +18,8 @@ internal sealed partial class StatefulSessionManager(
     private readonly long _idleTimeoutTicks = httpServerTransportOptions.Value.IdleTimeout.Ticks;
     private readonly int _maxIdleSessionCount = httpServerTransportOptions.Value.MaxIdleSessionCount;
 
-    private readonly SemaphoreSlim _idlePruningLock = new(1, 1);
-    private readonly List<long> _idleTimeStamps = [];
+    private readonly object _idlePruningLock = new();
+    private readonly List<long> _idleTimestamps = [];
     private readonly List<string> _idleSessionIds = [];
     private int _nextIndexToPrune;
 
@@ -32,60 +32,62 @@ internal sealed partial class StatefulSessionManager(
 
     public async ValueTask StartNewSessionAsync(StreamableHttpSession newSession, CancellationToken cancellationToken)
     {
-        if (TryAddSessionImmediately(newSession))
+        while (!TryAddSessionImmediately(newSession))
         {
-            return;
-        }
+            StreamableHttpSession? sessionToPrune = null;
 
-        await _idlePruningLock.WaitAsync(cancellationToken);
-        try
-        {
-            while (!TryAddSessionImmediately(newSession))
+            lock (_idlePruningLock)
             {
                 EnsureIdleSessionsSortedUnsynchronized();
 
                 while (_nextIndexToPrune < _idleSessionIds.Count)
                 {
                     var pruneId = _idleSessionIds[_nextIndexToPrune++];
-                    if (TryGetValue(pruneId, out var sessionToPrune))
+                    if (TryGetValue(pruneId, out sessionToPrune))
                     {
-                        if (!sessionToPrune.IsActive && TryRemove(pruneId, out _))
+                        if (!sessionToPrune.IsActive && TryRemove(pruneId, out sessionToPrune))
                         {
                             LogIdleSessionLimit(pruneId, _maxIdleSessionCount);
-
-                            // We're intentionally waiting for the idle session to be disposed before releasing the _idlePruningLock to
-                            // ensure new sessions are not created faster than they're removed when we're at or above the maximum idle session count.
-                            await DisposeSessionAsync(sessionToPrune);
-
-                            // Take one last chance to check if the initialize request was aborted before we incur the cost of managing a new session.
-                            cancellationToken.ThrowIfCancellationRequested();
-                            AddSession(newSession);
-                            return;
+                            break;
                         }
                     }
                 }
 
-                // If we couldn't find any active idle sessions to dispose, start another full prune to repopulate _idleSessionIds.
-                PruneIdleSessionsUnsynchronized();
-
-                if (_idleSessionIds.Count == 0 && Interlocked.Read(ref _currentIdleSessionCount) >= _maxIdleSessionCount)
+                if (sessionToPrune is null)
                 {
-                    // This indicates all idle sessions are in the process of being disposed which should not happen during normal operation.
-                    // Since there are no idle sessions to prune right now, log a critical error and create the new session anyway.
-                    LogTooManyIdleSessionsClosingConcurrently(newSession.Id, _maxIdleSessionCount, Interlocked.Read(ref _currentIdleSessionCount));
+                    // If we couldn't find any active idle sessions to dispose, start another full prune to repopulate _idleSessionIds.
+                    PruneIdleSessionsUnsynchronized();
+
+                    if (_idleSessionIds.Count == 0 && Volatile.Read(ref _currentIdleSessionCount) >= _maxIdleSessionCount)
+                    {
+                        // This indicates all idle sessions are in the process of being disposed which should not happen during normal operation.
+                        // Since there are no idle sessions to prune right now, log a critical error and create the new session anyway.
+                        LogTooManyIdleSessionsClosingConcurrently(newSession.Id, _maxIdleSessionCount, Volatile.Read(ref _currentIdleSessionCount));
+                        AddSession(newSession);
+                        return;
+                    }
+                }
+            }
+
+            if (sessionToPrune is not null)
+            {
+                try
+                {
+                    // Since we're at or above the maximum idle session count, we're intentionally waiting for the idle session to be disposed
+                    // before adding a new session to the dictionary to ensure sessions not created faster than they're removed.
+                    await DisposeSessionAsync(sessionToPrune);
+
+                    // Take one last chance to check if the initialize request was aborted before we incur the cost of managing a new session.
+                    cancellationToken.ThrowIfCancellationRequested();
                     AddSession(newSession);
                     return;
                 }
+                catch
+                {
+                    await newSession.DisposeAsync();
+                    throw;
+                }
             }
-        }
-        catch
-        {
-            await newSession.DisposeAsync();
-            throw;
-        }
-        finally
-        {
-            _idlePruningLock.Release();
         }
     }
 
@@ -95,14 +97,9 @@ internal sealed partial class StatefulSessionManager(
     /// </summary>
     public async Task PruneIdleSessionsAsync(CancellationToken cancellationToken)
     {
-        await _idlePruningLock.WaitAsync(cancellationToken);
-        try
+        lock (_idlePruningLock)
         {
             PruneIdleSessionsUnsynchronized();
-        }
-        finally
-        {
-            _idlePruningLock.Release();
         }
     }
 
@@ -116,7 +113,7 @@ internal sealed partial class StatefulSessionManager(
 
         // We clear the lists at the start of pruning rather than the end so we can use them between runs
         // to find the most idle sessions to remove one-at-a-time if necessary to make room for new sessions.
-        _idleTimeStamps.Clear();
+        _idleTimestamps.Clear();
         _idleSessionIds.Clear();
         _nextIndexToPrune = -1;
 
@@ -136,11 +133,11 @@ internal sealed partial class StatefulSessionManager(
             }
 
             // Add the timestamp and the session
-            _idleTimeStamps.Add(session.LastActivityTicks);
+            _idleTimestamps.Add(session.LastActivityTicks);
             _idleSessionIds.Add(session.Id);
         }
 
-        if (_idleTimeStamps.Count > _maxIdleSessionCount)
+        if (_idleTimestamps.Count > _maxIdleSessionCount)
         {
             // Sort only if the maximum is breached and sort solely by the timestamp.
             EnsureIdleSessionsSortedUnsynchronized();
@@ -163,7 +160,7 @@ internal sealed partial class StatefulSessionManager(
             return;
         }
 
-        var timestamps = CollectionsMarshal.AsSpan(_idleTimeStamps);
+        var timestamps = CollectionsMarshal.AsSpan(_idleTimestamps);
         timestamps.Sort(CollectionsMarshal.AsSpan(_idleSessionIds));
         _nextIndexToPrune = 0;
     }
@@ -188,7 +185,7 @@ internal sealed partial class StatefulSessionManager(
 
     private bool TryAddSessionImmediately(StreamableHttpSession session)
     {
-        if (Interlocked.Read(ref _currentIdleSessionCount) < _maxIdleSessionCount)
+        if (Volatile.Read(ref _currentIdleSessionCount) < _maxIdleSessionCount)
         {
             AddSession(session);
             return true;
