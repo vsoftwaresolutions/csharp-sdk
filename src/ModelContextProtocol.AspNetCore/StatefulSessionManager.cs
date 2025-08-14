@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,10 +9,12 @@ namespace ModelContextProtocol.AspNetCore;
 
 internal sealed partial class StatefulSessionManager(
     IOptions<HttpServerTransportOptions> httpServerTransportOptions,
-    ILogger<StatefulSessionManager> logger) : ConcurrentDictionary<string, StreamableHttpSession>(StringComparer.Ordinal)
+    ILogger<StatefulSessionManager> logger)
 {
     // Workaround for https://github.com/dotnet/runtime/issues/91121. This is fixed in .NET 9 and later.
     private readonly ILogger _logger = logger;
+
+    private readonly ConcurrentDictionary<string, StreamableHttpSession> _sessions = new(StringComparer.Ordinal);
 
     private readonly TimeProvider _timeProvider = httpServerTransportOptions.Value.TimeProvider;
     private readonly TimeSpan _idleTimeout = httpServerTransportOptions.Value.IdleTimeout;
@@ -30,6 +33,9 @@ internal sealed partial class StatefulSessionManager(
     public void IncrementIdleSessionCount() => Interlocked.Increment(ref _currentIdleSessionCount);
     public void DecrementIdleSessionCount() => Interlocked.Decrement(ref _currentIdleSessionCount);
 
+    public bool TryGetValue(string key, [NotNullWhen(true)] out StreamableHttpSession? value) => _sessions.TryGetValue(key, out value);
+    public bool TryRemove(string key, [NotNullWhen(true)] out StreamableHttpSession? value) => _sessions.TryRemove(key, out value);
+
     public async ValueTask StartNewSessionAsync(StreamableHttpSession newSession, CancellationToken cancellationToken)
     {
         while (!TryAddSessionImmediately(newSession))
@@ -45,7 +51,7 @@ internal sealed partial class StatefulSessionManager(
                     var pruneId = _idleSessionIds[_nextIndexToPrune++];
                     if (TryGetValue(pruneId, out sessionToPrune))
                     {
-                        if (!sessionToPrune.IsActive && TryRemove(pruneId, out sessionToPrune))
+                        if (!sessionToPrune.IsActive && _sessions.TryRemove(pruneId, out sessionToPrune))
                         {
                             LogIdleSessionLimit(pruneId, _maxIdleSessionCount);
                             break;
@@ -117,7 +123,7 @@ internal sealed partial class StatefulSessionManager(
         _idleSessionIds.Clear();
         _nextIndexToPrune = -1;
 
-        foreach (var (_, session) in this)
+        foreach (var (_, session) in _sessions)
         {
             if (session.IsActive || session.SessionClosed.IsCancellationRequested)
             {
@@ -172,9 +178,9 @@ internal sealed partial class StatefulSessionManager(
     {
         List<Task> disposeSessionTasks = [];
 
-        foreach (var (sessionKey, _) in this)
+        foreach (var (sessionKey, _) in _sessions)
         {
-            if (TryRemove(sessionKey, out var session))
+            if (_sessions.TryRemove(sessionKey, out var session))
             {
                 disposeSessionTasks.Add(DisposeSessionAsync(session));
             }
@@ -196,7 +202,7 @@ internal sealed partial class StatefulSessionManager(
 
     private void AddSession(StreamableHttpSession session)
     {
-        if (!TryAdd(session.Id, session))
+        if (!_sessions.TryAdd(session.Id, session))
         {
             throw new UnreachableException($"Unreachable given good entropy! Session with ID '{session.Id}' has already been created.");
         }
@@ -204,7 +210,7 @@ internal sealed partial class StatefulSessionManager(
 
     private void RemoveAndCloseSession(string sessionId)
     {
-        if (!TryRemove(sessionId, out var session))
+        if (!_sessions.TryRemove(sessionId, out var session))
         {
             return;
         }
