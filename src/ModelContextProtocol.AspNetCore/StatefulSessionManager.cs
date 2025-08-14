@@ -21,7 +21,7 @@ internal sealed partial class StatefulSessionManager(
     private readonly long _idleTimeoutTicks = httpServerTransportOptions.Value.IdleTimeout.Ticks;
     private readonly int _maxIdleSessionCount = httpServerTransportOptions.Value.MaxIdleSessionCount;
 
-    private readonly object _idlePruningLock = new();
+    private readonly SemaphoreSlim _idlePruningLock = new(1, 1);
     private readonly List<long> _idleTimestamps = [];
     private readonly List<string> _idleSessionIds = [];
     private int _nextIndexToPrune;
@@ -42,7 +42,8 @@ internal sealed partial class StatefulSessionManager(
         {
             StreamableHttpSession? sessionToPrune = null;
 
-            lock (_idlePruningLock)
+            await _idlePruningLock.WaitAsync(cancellationToken);
+            try
             {
                 EnsureIdleSessionsSortedUnsynchronized();
 
@@ -74,6 +75,10 @@ internal sealed partial class StatefulSessionManager(
                     }
                 }
             }
+            finally
+            {
+                _idlePruningLock.Release();
+            }
 
             if (sessionToPrune is not null)
             {
@@ -103,9 +108,14 @@ internal sealed partial class StatefulSessionManager(
     /// </summary>
     public async Task PruneIdleSessionsAsync(CancellationToken cancellationToken)
     {
-        lock (_idlePruningLock)
+        await _idlePruningLock.WaitAsync(cancellationToken);
+        try
         {
             PruneIdleSessionsUnsynchronized();
+        }
+        finally
+        {
+            _idlePruningLock.Release();
         }
     }
 
