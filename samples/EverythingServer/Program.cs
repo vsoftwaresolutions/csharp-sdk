@@ -3,10 +3,8 @@ using EverythingServer.Prompts;
 using EverythingServer.Resources;
 using EverythingServer.Tools;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
+using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using OpenTelemetry;
@@ -15,19 +13,14 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-var builder = Host.CreateApplicationBuilder(args);
-builder.Logging.AddConsole(consoleLogOptions =>
-{
-    // Configure all logs to go to stderr
-    consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
-});
+var builder = WebApplication.CreateBuilder(args);
 
 HashSet<string> subscriptions = [];
 var _minimumLoggingLevel = LoggingLevel.Debug;
 
 builder.Services
     .AddMcpServer()
-    .WithStdioServerTransport()
+    .WithHttpTransport()
     .WithTools<AddTool>()
     .WithTools<AnnotatedMessageTool>()
     .WithTools<EchoTool>()
@@ -151,4 +144,10 @@ builder.Services.AddHostedService<LoggingUpdateMessageSender>();
 
 builder.Services.AddSingleton<Func<LoggingLevel>>(_ => () => _minimumLoggingLevel);
 
-await builder.Build().RunAsync();
+var app = builder.Build();
+
+app.UseHttpsRedirection();
+
+app.MapMcp();
+
+app.Run();
