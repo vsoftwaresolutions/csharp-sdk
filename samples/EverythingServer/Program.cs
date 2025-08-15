@@ -145,7 +145,7 @@ builder.Services.AddOpenTelemetry()
     .WithLogging(b => b.SetResourceBuilder(resource))
     .UseOtlpExporter();
 
-builder.Services.AddSingleton(subscriptions);
+builder.Services.AddSingleton<IDictionary<string, List<IMcpServer>>>(subscriptions);
 builder.Services.AddHostedService<SubscriptionMessageSender>();
 builder.Services.AddHostedService<LoggingUpdateMessageSender>();
 

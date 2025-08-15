@@ -1,7 +1,7 @@
 ﻿using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
-internal class SubscriptionMessageSender(IServiceProvider serviceProvider, HashSet<string> subscriptions) : BackgroundService
+internal class SubscriptionMessageSender(IDictionary<string, List<IMcpServer>> subscriptions) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -12,11 +12,9 @@ internal class SubscriptionMessageSender(IServiceProvider serviceProvider, HashS
         {
             try
             {
-                // Try to get the server from the service provider
-                var server = serviceProvider.GetService<IMcpServer>();
-                if (server != null)
+                foreach (var (uri, servers) in subscriptions)
                 {
-                    foreach (var uri in subscriptions)
+                    foreach (var server in servers)
                     {
                         await server.SendNotificationAsync("notifications/resource/updated",
                             new
