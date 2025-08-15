@@ -4,7 +4,7 @@ using ModelContextProtocol.Server;
 
 namespace EverythingServer;
 
-public class LoggingUpdateMessageSender(IServiceProvider serviceProvider, Func<LoggingLevel> getMinLevel) : BackgroundService
+public class LoggingUpdateMessageSender(IServiceProvider serviceProvider) : BackgroundService
 {
     readonly Dictionary<LoggingLevel, string> _loggingLevelMap = new()
     {
@@ -39,7 +39,7 @@ public class LoggingUpdateMessageSender(IServiceProvider serviceProvider, Func<L
                             Data = _loggingLevelMap[newLevel],
                         };
 
-                    if (newLevel > getMinLevel())
+                    if (newLevel > server.LoggingLevel)
                     {
                         await server.SendNotificationAsync("notifications/message", message, cancellationToken: stoppingToken);
                     }

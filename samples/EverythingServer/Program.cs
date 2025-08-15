@@ -16,7 +16,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Subscriptions tracks resource URIs to McpServer instances
 Dictionary<string, List<IMcpServer>> subscriptions = new();
-var _minimumLoggingLevel = LoggingLevel.Debug;
 
 builder.Services
     .AddMcpServer()
@@ -127,13 +126,13 @@ builder.Services
             throw new McpException("Missing required argument 'level'", McpErrorCode.InvalidParams);
         }
 
-        _minimumLoggingLevel = ctx.Params.Level;
+        // The SDK updates the LoggingLevel field of the IMcpServer
 
         await ctx.Server.SendNotificationAsync("notifications/message", new
         {
             Level = "debug",
             Logger = "test-server",
-            Data = $"Logging level set to {_minimumLoggingLevel}",
+            Data = $"Logging level set to {ctx.Params.Level}",
         }, cancellationToken: ct);
 
         return new EmptyResult();
@@ -149,8 +148,6 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddSingleton(subscriptions);
 builder.Services.AddHostedService<SubscriptionMessageSender>();
 builder.Services.AddHostedService<LoggingUpdateMessageSender>();
-
-builder.Services.AddSingleton<Func<LoggingLevel>>(_ => () => _minimumLoggingLevel);
 
 var app = builder.Build();
 
