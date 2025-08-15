@@ -4,7 +4,6 @@ using EverythingServer.Resources;
 using EverythingServer.Tools;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol;
-using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using OpenTelemetry;
@@ -15,7 +14,8 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-HashSet<string> subscriptions = [];
+// Subscriptions tracks resource URIs to McpServer instances
+Dictionary<string, List<IMcpServer>> subscriptions = new();
 var _minimumLoggingLevel = LoggingLevel.Debug;
 
 builder.Services
@@ -37,7 +37,11 @@ builder.Services
 
         if (uri is not null)
         {
-            subscriptions.Add(uri);
+            if (!subscriptions.ContainsKey(uri))
+            {
+                subscriptions[uri] = new List<IMcpServer>();
+            }
+            subscriptions[uri].Add(ctx.Server);
 
             await ctx.Server.SampleAsync([
                 new ChatMessage(ChatRole.System, "You are a helpful test server"),
@@ -58,7 +62,11 @@ builder.Services
         var uri = ctx.Params?.Uri;
         if (uri is not null)
         {
-            subscriptions.Remove(uri);
+            if (subscriptions.ContainsKey(uri))
+            {
+                // Remove ctx.Server from the subscription list
+                subscriptions[uri].Remove(ctx.Server);
+            }
         }
         return new EmptyResult();
     })
