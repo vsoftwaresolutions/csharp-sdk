@@ -7,10 +7,6 @@ uid: filters
 
 # MCP Server Handler Filters
 
-This document describes the filter functionality in the MCP Server, which allows you to add middleware-style filters to handler pipelines.
-
-## Overview
-
 For each handler type in the MCP Server, there are corresponding `AddXXXFilter` methods in `McpServerBuilderExtensions.cs` that allow you to add filters to the handler pipeline. The filters are stored in `McpServerOptions.Filters` and applied during server configuration.
 
 ## Available Filter Methods
@@ -173,12 +169,12 @@ You can apply authorization at the class level, which affects all tools in the c
 ```csharp
 [McpServerToolType]
 [Authorize] // All tools require authentication
-public class AdminTools
+public class RestrictedTools
 {
-    [McpServerTool, Description("Admin-only tool")]
-    public static string AdminOperation()
+    [McpServerTool, Description("Restricted tool accessible to authenticated users")]
+    public static string RestrictedOperation()
     {
-        return "Admin operation completed";
+        return "Restricted operation completed";
     }
 
     [McpServerTool, Description("Public tool accessible to anonymous users")]
@@ -211,22 +207,21 @@ To use authorization features, you must configure authentication and authorizati
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Add authentication
 builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options => { /* JWT configuration */ });
-
-// Add authorization (required for [Authorize] attributes to work)
+    .AddJwtBearer(options => { /* JWT configuration */ })
+    .AddMcp(options => { /* Resource metadata configuration */ });
 builder.Services.AddAuthorization();
 
-// Add MCP server
 builder.Services.AddMcpServer()
-    .WithTools<WeatherTools>();
+    .WithHttpTransport()
+    .WithTools<WeatherTools>()
+    .AddCallToolFilter(next => async (context, cancellationToken) =>
+    {
+        // Custom call tool logic
+        return await next(context, cancellationToken);
+    });
 
 var app = builder.Build();
-
-// Use authentication and authorization middleware
-app.UseAuthentication();
-app.UseAuthorization();
 
 app.MapMcp();
 app.Run();
